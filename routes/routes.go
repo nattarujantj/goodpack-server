@@ -15,7 +15,7 @@ import (
 func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository) http.Handler {
 	router := mux.NewRouter()
 
-	// Initialize handlers test
+	// Initialize handlers test2
 	productHandler := handlers.NewProductHandler(productRepo)
 	qrHandler := handlers.NewQRHandler(productRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo)
