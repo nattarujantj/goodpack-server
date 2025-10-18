@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -22,6 +23,7 @@ func NewCustomerHandler(repo *repository.CustomerRepository) *CustomerHandler {
 func (h *CustomerHandler) GetCustomers(w http.ResponseWriter, r *http.Request) {
 	customers, err := h.repo.GetAll()
 	if err != nil {
+		log.Printf("Error fetching customers: %v", err)
 		http.Error(w, "Failed to fetch customers", http.StatusInternalServerError)
 		return
 	}

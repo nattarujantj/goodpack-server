@@ -1,0 +1,100 @@
+name: Deploy Goodpack
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          echo "🚀 Starting Goodpack deployment..."
+          
+          # Navigate to project directory
+          cd /opt/goodpack
+          
+          # Pull latest code
+          echo "📥 Pulling latest code from master..."
+          git pull origin master
+          
+          # Deploy Go Server
+          echo "🔧 Deploying Go server..."
+          cd goodpack-server
+          
+          # Download dependencies
+          echo "📦 Downloading Go dependencies..."
+          go mod download
+          
+          # Build Go server
+          echo "🔨 Building Go server..."
+          go build -o server main.go
+          
+          # Restart Go server
+          echo "🔄 Restarting Go server..."
+          systemctl restart goodpack-server
+          
+          # Wait for server to start
+          sleep 3
+          
+          # Check Go server status
+          echo "✅ Checking Go server status..."
+          if systemctl is-active --quiet goodpack-server; then
+            echo "✅ Go server is running"
+          else
+            echo "❌ Go server failed to start"
+            systemctl status goodpack-server
+            exit 1
+          fi
+          
+          # Deploy Flutter Web
+          echo "🌐 Deploying Flutter web..."
+          cd ../goodpack-web
+          
+          # Clean and get dependencies
+          echo "🧹 Cleaning Flutter project..."
+          flutter clean
+          
+          echo "📦 Getting Flutter dependencies..."
+          flutter pub get
+          
+          # Build Flutter web
+          echo "🔨 Building Flutter web..."
+          flutter build web --release
+          
+          # Copy build files
+          echo "📁 Copying Flutter build files..."
+          mkdir -p /var/www/goodpack-web
+          cp -r build/web/* /var/www/goodpack-web/
+          
+          # Restart Nginx
+          echo "🔄 Restarting Nginx..."
+          nginx -t && systemctl restart nginx
+          
+          # Final checks
+          echo "🔍 Running final checks..."
+          
+          # Test API
+          if curl -s http://localhost:8080/api/health > /dev/null; then
+            echo "✅ API health check passed"
+          else
+            echo "⚠️ API health check failed"
+          fi
+          
+          # Test web
+          if curl -s http://localhost > /dev/null; then
+            echo "✅ Web server check passed"
+          else
+            echo "⚠️ Web server check failed"
+          fi
+          
+          echo "🎉 Deployment completed successfully!"
+          echo "🌐 Web app: http://$(curl -s ifconfig.me)"
+          echo "🔗 API health: http://$(curl -s ifconfig.me):8080/api/health"
