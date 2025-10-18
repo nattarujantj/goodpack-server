@@ -1,0 +1,34 @@
+[
+  {
+    "id": "acc1",
+    "name": "บัญชีธนาคารกสิกรไทย",
+    "accountNumber": "123-456-7890",
+    "bankName": "ธนาคารกสิกรไทย",
+    "accountType": "ออมทรัพย์",
+    "isActive": true
+  },
+  {
+    "id": "acc2", 
+    "name": "บัญชีธนาคารไทยพาณิชย์",
+    "accountNumber": "987-654-3210",
+    "bankName": "ธนาคารไทยพาณิชย์",
+    "accountType": "กระแสรายวัน",
+    "isActive": true
+  },
+  {
+    "id": "acc3",
+    "name": "บัญชีธนาคารกรุงเทพ",
+    "accountNumber": "555-666-7777", 
+    "bankName": "ธนาคารกรุงเทพ",
+    "accountType": "ออมทรัพย์",
+    "isActive": true
+  },
+  {
+    "id": "acc4",
+    "name": "บัญชีธนาคารกรุงศรีอยุธยา",
+    "accountNumber": "111-222-3333",
+    "bankName": "ธนาคารกรุงศรีอยุธยา", 
+    "accountType": "กระแสรายวัน",
+    "isActive": false
+  }
+]

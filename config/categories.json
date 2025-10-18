@@ -1,0 +1,44 @@
+{
+  "categories": [
+    {
+      "name": "ขวด",
+      "abbreviation": "BT",
+      "english": "bottle"
+    },
+    {
+      "name": "ฝา",
+      "abbreviation": "CP",
+      "english": "cap"
+    },
+    {
+      "name": "ปั๊ม",
+      "abbreviation": "PM",
+      "english": "pump"
+    },
+    {
+      "name": "ฟ็อกกี้",
+      "abbreviation": "FG",
+      "english": "foggy"
+    },
+    {
+      "name": "สเปรย์",
+      "abbreviation": "SPM",
+      "english": "spray mist"
+    },
+    {
+      "name": "โม",
+      "abbreviation": "MOL",
+      "english": "mol"
+    },
+    {
+      "name": "แอลกอฮอล์",
+      "abbreviation": "AL",
+      "english": "alcohol"
+    },
+    {
+      "name": "อื่นๆ",
+      "abbreviation": "OT",
+      "english": "others"
+    }
+  ]
+}

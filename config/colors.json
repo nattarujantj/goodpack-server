@@ -1,0 +1,89 @@
+{
+  "colors": [
+    {
+      "name": "แดง",
+      "abbreviation": "RD",
+      "english": "red"
+    },
+    {
+      "name": "น้ำเงิน",
+      "abbreviation": "BL",
+      "english": "blue"
+    },
+    {
+      "name": "เขียว",
+      "abbreviation": "GR",
+      "english": "green"
+    },
+    {
+      "name": "เหลือง",
+      "abbreviation": "YL",
+      "english": "yellow"
+    },
+    {
+      "name": "ดำ",
+      "abbreviation": "BK",
+      "english": "black"
+    },
+    {
+      "name": "ขาว",
+      "abbreviation": "WH",
+      "english": "white"
+    },
+    {
+      "name": "เทา",
+      "abbreviation": "GY",
+      "english": "gray"
+    },
+    {
+      "name": "ชมพู",
+      "abbreviation": "PK",
+      "english": "pink"
+    },
+    {
+      "name": "ส้ม",
+      "abbreviation": "OR",
+      "english": "orange"
+    },
+    {
+      "name": "ม่วง",
+      "abbreviation": "PR",
+      "english": "purple"
+    },
+    {
+      "name": "น้ำตาล",
+      "abbreviation": "BR",
+      "english": "brown"
+    },
+    {
+      "name": "ทอง",
+      "abbreviation": "GD",
+      "english": "gold"
+    },
+    {
+      "name": "เงิน",
+      "abbreviation": "SV",
+      "english": "silver"
+    },
+    {
+      "name": "ฟ้า",
+      "abbreviation": "CY",
+      "english": "cyan"
+    },
+    {
+      "name": "ครีม",
+      "abbreviation": "CR",
+      "english": "cream"
+    },
+    {
+      "name": "เบจ",
+      "abbreviation": "BE",
+      "english": "beige"
+    },
+    {
+      "name": "อื่นๆ",
+      "abbreviation": "OT",
+      "english": "others"
+    }
+  ]
+}
