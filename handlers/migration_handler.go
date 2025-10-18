@@ -19,13 +19,15 @@ type MigrationHandler struct {
 	customerRepo *repository.CustomerRepository
 	productRepo  *repository.ProductRepository
 	purchaseRepo *repository.PurchaseRepository
+	saleRepo     *repository.SaleRepository
 }
 
-func NewMigrationHandler(customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, purchaseRepo *repository.PurchaseRepository) *MigrationHandler {
+func NewMigrationHandler(customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository) *MigrationHandler {
 	return &MigrationHandler{
 		customerRepo: customerRepo,
 		productRepo:  productRepo,
 		purchaseRepo: purchaseRepo,
+		saleRepo:     saleRepo,
 	}
 }
 
@@ -61,6 +63,19 @@ type ProductCSVRow struct {
 type PurchaseCSVRow struct {
 	PurchaseCode string `csv:"purchaseCode"`
 	PurchaseDate string `csv:"purchaseDate"`
+	CustomerCode string `csv:"customerCode"`
+	ProductCode  string `csv:"productCode"`
+	Quantity     string `csv:"quantity"`
+	UnitPrice    string `csv:"unitPrice"`
+	IsVAT        string `csv:"isVAT"`
+	ShippingCost string `csv:"shippingCost"`
+	Notes        string `csv:"notes"`
+}
+
+// SaleCSVRow represents a row in the sale CSV file
+type SaleCSVRow struct {
+	SaleCode     string `csv:"saleCode"`
+	SaleDate     string `csv:"saleDate"`
 	CustomerCode string `csv:"customerCode"`
 	ProductCode  string `csv:"productCode"`
 	Quantity     string `csv:"quantity"`
@@ -909,5 +924,353 @@ func (h *MigrationHandler) GetPurchaseCSVTemplate(w http.ResponseWriter, r *http
 
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment; filename=purchase_template.csv")
+	w.Write([]byte(template))
+}
+
+// MigrateSalesFromCSV handles CSV file upload and migration for sales
+func (h *MigrationHandler) MigrateSalesFromCSV(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse multipart form
+	err := r.ParseMultipartForm(10 << 20) // 10 MB max file size
+	if err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	// Get the uploaded file
+	file, _, err := r.FormFile("csvFile")
+	if err != nil {
+		http.Error(w, "No CSV file uploaded", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Parse CSV
+	result, err := h.parseAndMigrateSaleCSV(file)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to process CSV: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// parseAndMigrateSaleCSV parses CSV file and migrates sale data to database
+func (h *MigrationHandler) parseAndMigrateSaleCSV(file io.Reader) (*MigrationResult, error) {
+	reader := csv.NewReader(file)
+	reader.FieldsPerRecord = -1 // Allow variable number of fields
+
+	// Read all records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CSV: %v", err)
+	}
+
+	if len(records) < 2 {
+		return nil, fmt.Errorf("CSV file must have at least a header row and one data row")
+	}
+
+	// Get header row
+	headers := records[0]
+	headerMap := make(map[string]int)
+	for i, header := range headers {
+		headerMap[strings.ToLower(strings.TrimSpace(header))] = i
+	}
+
+	// Validate required headers
+	requiredHeaders := []string{"saledate", "customercode", "productcode", "quantity", "unitprice"}
+	optionalHeaders := []string{"salecode", "isvat", "shippingcost", "notes"}
+
+	for _, required := range requiredHeaders {
+		if _, exists := headerMap[required]; !exists {
+			return nil, fmt.Errorf("missing required header: %s", required)
+		}
+	}
+
+	// Log available optional headers
+	for _, optional := range optionalHeaders {
+		if _, exists := headerMap[optional]; exists {
+			fmt.Printf("Found optional header: %s\n", optional)
+		}
+	}
+
+	result := &MigrationResult{
+		TotalRows:   len(records) - 1, // Exclude header row
+		SuccessRows: 0,
+		FailedRows:  0,
+		Errors:      []string{},
+		ProcessedAt: time.Now(),
+	}
+
+	// Group records by sale (same saleCode or saleDate + customerCode)
+	saleGroups := h.groupSaleRecords(records[1:], headerMap)
+
+	// Process each sale group
+	for groupKey, groupRecords := range saleGroups {
+		rowNum := groupRecords[0].RowNum
+
+		// Create sale from CSV group
+		sale, err := h.createSaleFromGroup(groupRecords, headerMap)
+		if err != nil {
+			result.FailedRows++
+			result.Errors = append(result.Errors, fmt.Sprintf("Group %s: %v", groupKey, err))
+			continue
+		}
+
+		// Validate required fields
+		if sale.CustomerID == "" {
+			result.FailedRows++
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: Customer not found", rowNum))
+			continue
+		}
+
+		if len(sale.Items) == 0 {
+			result.FailedRows++
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: No valid items found", rowNum))
+			continue
+		}
+
+		// Save to database
+		err = h.saleRepo.Create(sale)
+		if err != nil {
+			result.FailedRows++
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: Failed to save sale - %v", rowNum, err))
+			continue
+		}
+
+		// Update product prices and stock
+		err = h.updateProductsFromSale(sale)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: Failed to update products - %v", rowNum, err))
+		}
+
+		result.SuccessRows++
+	}
+
+	return result, nil
+}
+
+// SaleRecord represents a single CSV record with row number
+type SaleRecord struct {
+	RowNum int
+	Record []string
+}
+
+// groupSaleRecords groups CSV records by sale
+func (h *MigrationHandler) groupSaleRecords(records [][]string, headerMap map[string]int) map[string][]SaleRecord {
+	groups := make(map[string][]SaleRecord)
+
+	for i, record := range records {
+		rowNum := i + 2 // +2 because we start from row 2 (after header)
+
+		// Get group key (saleCode or saleDate + customerCode)
+		saleCode := h.getFieldValue(record, headerMap, "salecode")
+		saleDate := h.getFieldValue(record, headerMap, "saledate")
+		customerCode := h.getFieldValue(record, headerMap, "customercode")
+
+		var groupKey string
+		if saleCode != "" {
+			groupKey = saleCode
+		} else {
+			groupKey = fmt.Sprintf("%s-%s", saleDate, customerCode)
+		}
+
+		groups[groupKey] = append(groups[groupKey], SaleRecord{
+			RowNum: rowNum,
+			Record: record,
+		})
+	}
+
+	return groups
+}
+
+// createSaleFromGroup creates a sale from a group of CSV records
+func (h *MigrationHandler) createSaleFromGroup(records []SaleRecord, headerMap map[string]int) (*models.Sale, error) {
+	if len(records) == 0 {
+		return nil, fmt.Errorf("no records in group")
+	}
+
+	firstRecord := records[0].Record
+
+	// Parse sale date
+	saleDateStr := h.getFieldValue(firstRecord, headerMap, "saledate")
+	saleDate, err := time.Parse("2006-01-02", saleDateStr)
+	if err != nil {
+		saleDate = time.Now() // Default to current time if parsing fails
+	}
+
+	// Get customer by code
+	customerCode := h.getFieldValue(firstRecord, headerMap, "customercode")
+	customer, err := h.customerRepo.GetByCustomerCode(customerCode)
+	if err != nil {
+		return nil, fmt.Errorf("customer not found: %s", customerCode)
+	}
+
+	// Parse VAT status
+	isVAT := strings.ToLower(h.getFieldValue(firstRecord, headerMap, "isvat")) == "true"
+
+	// Parse shipping cost
+	shippingCost, _ := h.parseFloat(h.getFieldValue(firstRecord, headerMap, "shippingcost"))
+
+	// Parse notes
+	notes := h.getFieldValue(firstRecord, headerMap, "notes")
+	var notesPtr *string
+	if notes != "" {
+		notesPtr = &notes
+	}
+
+	// Create sale items
+	var items []models.SaleItem
+	for _, record := range records {
+		productCode := h.getFieldValue(record.Record, headerMap, "productcode")
+		quantityStr := h.getFieldValue(record.Record, headerMap, "quantity")
+		unitPriceStr := h.getFieldValue(record.Record, headerMap, "unitprice")
+
+		// Get product by code
+		product, err := h.productRepo.GetByCode(context.Background(), productCode)
+		if err != nil {
+			return nil, fmt.Errorf("product not found: %s", productCode)
+		}
+
+		quantity, err := h.parseInt(quantityStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid quantity: %s", quantityStr)
+		}
+
+		unitPrice, err := h.parseFloat(unitPriceStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid unit price: %s", unitPriceStr)
+		}
+
+		totalPrice := unitPrice * float64(quantity)
+
+		items = append(items, models.SaleItem{
+			ProductID:   product.ID.Hex(),
+			ProductName: product.Name,
+			ProductCode: product.Code,
+			Quantity:    quantity,
+			UnitPrice:   unitPrice,
+			TotalPrice:  totalPrice,
+		})
+	}
+
+	// Generate sale code if not provided
+	saleCode := h.getFieldValue(firstRecord, headerMap, "salecode")
+	if saleCode == "" {
+		saleCode, err = h.generateSaleCode(isVAT)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate sale code: %v", err)
+		}
+	}
+
+	// Create sale
+	sale := &models.Sale{
+		SaleCode:     saleCode,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		SaleDate:     saleDate,
+		CustomerID:   customer.ID.Hex(),
+		CustomerName: customer.CompanyName,
+		ContactName:  &customer.ContactName,
+		CustomerCode: &customer.CustomerCode,
+		TaxID:        &customer.TaxID,
+		Address:      &customer.Address,
+		Phone:        &customer.Phone,
+		Items:        items,
+		IsVAT:        isVAT,
+		ShippingCost: shippingCost,
+		Payment: models.PaymentInfo{
+			IsPaid: false,
+		},
+		Warehouse: models.WarehouseInfo{
+			IsUpdated:      false,
+			ActualShipping: shippingCost,
+		},
+		Notes: notesPtr,
+	}
+
+	return sale, nil
+}
+
+// updateProductsFromSale updates product prices and stock based on sale
+func (h *MigrationHandler) updateProductsFromSale(sale *models.Sale) error {
+	for _, item := range sale.Items {
+		// Get product
+		product, err := h.productRepo.GetByID(context.Background(), item.ProductID)
+		if err != nil {
+			return fmt.Errorf("failed to get product %s: %v", item.ProductID, err)
+		}
+
+		// Update price
+		product.UpdatePrice(item.UnitPrice, sale.IsVAT, false) // false = isSale
+
+		// Update stock - reduce remaining stock
+		if sale.IsVAT {
+			product.Stock.VAT.Sold += item.Quantity
+			product.Stock.VAT.Remaining -= item.Quantity
+		} else {
+			product.Stock.NonVAT.Sold += item.Quantity
+			product.Stock.NonVAT.Remaining -= item.Quantity
+		}
+		product.Stock.ActualStock -= item.Quantity
+
+		// Ensure stock doesn't go negative
+		if product.Stock.ActualStock < 0 {
+			product.Stock.ActualStock = 0
+		}
+		if product.Stock.VAT.Remaining < 0 {
+			product.Stock.VAT.Remaining = 0
+		}
+		if product.Stock.NonVAT.Remaining < 0 {
+			product.Stock.NonVAT.Remaining = 0
+		}
+
+		// Save updated product
+		err = h.productRepo.Update(context.Background(), item.ProductID, product)
+		if err != nil {
+			return fmt.Errorf("failed to update product %s: %v", item.ProductID, err)
+		}
+	}
+
+	return nil
+}
+
+// generateSaleCode generates a unique sale code
+func (h *MigrationHandler) generateSaleCode(isVAT bool) (string, error) {
+	// This is a simplified version - you might want to use the actual repository method
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+	day := now.Day()
+
+	prefix := "S"
+	if isVAT {
+		prefix = "SV"
+	}
+
+	// Simple format: S-YYYYMMDD-001 or SV-YYYYMMDD-001
+	return fmt.Sprintf("%s-%04d%02d%02d-001", prefix, year, month, day), nil
+}
+
+// GetSaleCSVTemplate returns a CSV template for sale data
+func (h *MigrationHandler) GetSaleCSVTemplate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Create CSV template
+	template := "saleCode,saleDate,customerCode,productCode,quantity,unitPrice,isVAT,shippingCost,notes\n"
+	template += "S-001,2024-01-20,C-0001,เ-l/WH,5,399.00,true,30.00,ขายเสื้อเชิ้ต\n"
+	template += ",2024-01-20,C-0001,ก-32/BL,2,799.00,true,,ขายกางเกงยีนส์\n"
+	template += "S-002,2024-01-21,C-0002,ก-onesize/BK,1,1799.00,false,50.00,ขายกระเป๋า\n"
+
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=sale_template.csv")
 	w.Write([]byte(template))
 }
