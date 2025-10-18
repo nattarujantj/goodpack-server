@@ -18,12 +18,14 @@ import (
 type MigrationHandler struct {
 	customerRepo *repository.CustomerRepository
 	productRepo  *repository.ProductRepository
+	purchaseRepo *repository.PurchaseRepository
 }
 
-func NewMigrationHandler(customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository) *MigrationHandler {
+func NewMigrationHandler(customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, purchaseRepo *repository.PurchaseRepository) *MigrationHandler {
 	return &MigrationHandler{
 		customerRepo: customerRepo,
 		productRepo:  productRepo,
+		purchaseRepo: purchaseRepo,
 	}
 }
 
@@ -53,6 +55,19 @@ type ProductCSVRow struct {
 	StockVAT            string `csv:"stockVAT"`
 	StockNonVAT         string `csv:"stockNonVAT"`
 	ActualStock         string `csv:"actualStock"`
+}
+
+// PurchaseCSVRow represents a row in the purchase CSV file
+type PurchaseCSVRow struct {
+	PurchaseCode string `csv:"purchaseCode"`
+	PurchaseDate string `csv:"purchaseDate"`
+	CustomerCode string `csv:"customerCode"`
+	ProductCode  string `csv:"productCode"`
+	Quantity     string `csv:"quantity"`
+	UnitPrice    string `csv:"unitPrice"`
+	IsVAT        string `csv:"isVAT"`
+	ShippingCost string `csv:"shippingCost"`
+	Notes        string `csv:"notes"`
 }
 
 // MigrationResult represents the result of migration
@@ -542,4 +557,357 @@ func (h *MigrationHandler) generateProductCode(category, size, color string) str
 
 	// Format: Category-Size/Color
 	return fmt.Sprintf("%s-%s/%s", categoryPrefix, sizeCode, colorCode)
+}
+
+// MigratePurchasesFromCSV handles CSV file upload and migration for purchases
+func (h *MigrationHandler) MigratePurchasesFromCSV(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse multipart form
+	err := r.ParseMultipartForm(10 << 20) // 10 MB max file size
+	if err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	// Get the uploaded file
+	file, _, err := r.FormFile("csvFile")
+	if err != nil {
+		http.Error(w, "No CSV file uploaded", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Parse CSV
+	result, err := h.parseAndMigratePurchaseCSV(file)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to process CSV: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+// parseAndMigratePurchaseCSV parses CSV file and migrates purchase data to database
+func (h *MigrationHandler) parseAndMigratePurchaseCSV(file io.Reader) (*MigrationResult, error) {
+	reader := csv.NewReader(file)
+	reader.FieldsPerRecord = -1 // Allow variable number of fields
+
+	// Read all records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CSV: %v", err)
+	}
+
+	if len(records) < 2 {
+		return nil, fmt.Errorf("CSV file must have at least a header row and one data row")
+	}
+
+	// Get header row
+	headers := records[0]
+	headerMap := make(map[string]int)
+	for i, header := range headers {
+		headerMap[strings.ToLower(strings.TrimSpace(header))] = i
+	}
+
+	// Validate required headers
+	requiredHeaders := []string{"purchasedate", "customercode", "productcode", "quantity", "unitprice"}
+	optionalHeaders := []string{"purchasecode", "isvat", "shippingcost", "notes"}
+
+	for _, required := range requiredHeaders {
+		if _, exists := headerMap[required]; !exists {
+			return nil, fmt.Errorf("missing required header: %s", required)
+		}
+	}
+
+	// Log available optional headers
+	for _, optional := range optionalHeaders {
+		if _, exists := headerMap[optional]; exists {
+			fmt.Printf("Found optional header: %s\n", optional)
+		}
+	}
+
+	result := &MigrationResult{
+		TotalRows:   len(records) - 1, // Exclude header row
+		SuccessRows: 0,
+		FailedRows:  0,
+		Errors:      []string{},
+		ProcessedAt: time.Now(),
+	}
+
+	// Group records by purchase (same purchaseCode or purchaseDate + customerCode)
+	purchaseGroups := h.groupPurchaseRecords(records[1:], headerMap)
+
+	// Process each purchase group
+	for groupKey, groupRecords := range purchaseGroups {
+		rowNum := groupRecords[0].RowNum
+
+		// Create purchase from CSV group
+		purchase, err := h.createPurchaseFromGroup(groupRecords, headerMap)
+		if err != nil {
+			result.FailedRows++
+			result.Errors = append(result.Errors, fmt.Sprintf("Group %s: %v", groupKey, err))
+			continue
+		}
+
+		// Validate required fields
+		if purchase.CustomerID == "" {
+			result.FailedRows++
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: Customer not found", rowNum))
+			continue
+		}
+
+		if len(purchase.Items) == 0 {
+			result.FailedRows++
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: No valid items found", rowNum))
+			continue
+		}
+
+		// Save to database
+		err = h.purchaseRepo.Create(context.Background(), purchase)
+		if err != nil {
+			result.FailedRows++
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: Failed to save purchase - %v", rowNum, err))
+			continue
+		}
+
+		// Update product prices and stock
+		err = h.updateProductsFromPurchase(purchase)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: Failed to update products - %v", rowNum, err))
+		}
+
+		result.SuccessRows++
+	}
+
+	return result, nil
+}
+
+// PurchaseRecord represents a single CSV record with row number
+type PurchaseRecord struct {
+	RowNum int
+	Record []string
+}
+
+// groupPurchaseRecords groups CSV records by purchase
+func (h *MigrationHandler) groupPurchaseRecords(records [][]string, headerMap map[string]int) map[string][]PurchaseRecord {
+	groups := make(map[string][]PurchaseRecord)
+
+	for i, record := range records {
+		rowNum := i + 2 // +2 because we start from row 2 (after header)
+
+		// Get group key (purchaseCode or purchaseDate + customerCode)
+		purchaseCode := h.getFieldValue(record, headerMap, "purchasecode")
+		purchaseDate := h.getFieldValue(record, headerMap, "purchasedate")
+		customerCode := h.getFieldValue(record, headerMap, "customercode")
+
+		var groupKey string
+		if purchaseCode != "" {
+			groupKey = purchaseCode
+		} else {
+			groupKey = fmt.Sprintf("%s-%s", purchaseDate, customerCode)
+		}
+
+		groups[groupKey] = append(groups[groupKey], PurchaseRecord{
+			RowNum: rowNum,
+			Record: record,
+		})
+	}
+
+	return groups
+}
+
+// createPurchaseFromGroup creates a purchase from a group of CSV records
+func (h *MigrationHandler) createPurchaseFromGroup(records []PurchaseRecord, headerMap map[string]int) (*models.Purchase, error) {
+	if len(records) == 0 {
+		return nil, fmt.Errorf("no records in group")
+	}
+
+	firstRecord := records[0].Record
+
+	// Parse purchase date
+	purchaseDateStr := h.getFieldValue(firstRecord, headerMap, "purchasedate")
+	purchaseDate, err := time.Parse("2006-01-02", purchaseDateStr)
+	if err != nil {
+		purchaseDate = time.Now() // Default to current time if parsing fails
+	}
+
+	// Get customer by code
+	customerCode := h.getFieldValue(firstRecord, headerMap, "customercode")
+	customer, err := h.customerRepo.GetByCustomerCode(customerCode)
+	if err != nil {
+		return nil, fmt.Errorf("customer not found: %s", customerCode)
+	}
+
+	// Parse VAT status
+	isVAT := strings.ToLower(h.getFieldValue(firstRecord, headerMap, "isvat")) == "true"
+
+	// Parse shipping cost
+	shippingCost, _ := h.parseFloat(h.getFieldValue(firstRecord, headerMap, "shippingcost"))
+
+	// Parse notes
+	notes := h.getFieldValue(firstRecord, headerMap, "notes")
+	var notesPtr *string
+	if notes != "" {
+		notesPtr = &notes
+	}
+
+	// Create purchase items
+	var items []models.PurchaseItem
+	for _, record := range records {
+		productCode := h.getFieldValue(record.Record, headerMap, "productcode")
+		quantityStr := h.getFieldValue(record.Record, headerMap, "quantity")
+		unitPriceStr := h.getFieldValue(record.Record, headerMap, "unitprice")
+
+		// Get product by code
+		product, err := h.productRepo.GetByCode(context.Background(), productCode)
+		if err != nil {
+			return nil, fmt.Errorf("product not found: %s", productCode)
+		}
+
+		quantity, err := h.parseInt(quantityStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid quantity: %s", quantityStr)
+		}
+
+		unitPrice, err := h.parseFloat(unitPriceStr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid unit price: %s", unitPriceStr)
+		}
+
+		totalPrice := unitPrice * float64(quantity)
+
+		items = append(items, models.PurchaseItem{
+			ProductID:   product.ID.Hex(),
+			ProductName: product.Name,
+			ProductCode: product.Code,
+			Quantity:    quantity,
+			UnitPrice:   unitPrice,
+			TotalPrice:  totalPrice,
+		})
+	}
+
+	// Calculate totals
+	var totalAmount float64
+	for _, item := range items {
+		totalAmount += item.TotalPrice
+	}
+
+	var totalVAT float64
+	if isVAT {
+		totalVAT = totalAmount * 0.07 // 7% VAT
+	}
+
+	grandTotal := totalAmount + totalVAT + shippingCost
+
+	// Generate purchase code if not provided
+	purchaseCode := h.getFieldValue(firstRecord, headerMap, "purchasecode")
+	if purchaseCode == "" {
+		purchaseCode, err = h.generatePurchaseCode(isVAT)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate purchase code: %v", err)
+		}
+	}
+
+	// Create purchase
+	purchase := &models.Purchase{
+		PurchaseCode: purchaseCode,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		PurchaseDate: purchaseDate,
+		CustomerID:   customer.ID.Hex(),
+		CustomerName: customer.CompanyName,
+		ContactName:  &customer.ContactName,
+		CustomerCode: &customer.CustomerCode,
+		TaxID:        &customer.TaxID,
+		Address:      &customer.Address,
+		Phone:        &customer.Phone,
+		Notes:        notesPtr,
+		Items:        items,
+		IsVAT:        isVAT,
+		ShippingCost: shippingCost,
+		Payment: models.PaymentInfo{
+			IsPaid: false,
+		},
+		Warehouse: models.WarehouseInfo{
+			IsUpdated:      false,
+			ActualShipping: shippingCost,
+		},
+		TotalAmount: totalAmount,
+		TotalVAT:    totalVAT,
+		GrandTotal:  grandTotal,
+	}
+
+	return purchase, nil
+}
+
+// updateProductsFromPurchase updates product prices and stock based on purchase
+func (h *MigrationHandler) updateProductsFromPurchase(purchase *models.Purchase) error {
+	for _, item := range purchase.Items {
+		// Get product
+		product, err := h.productRepo.GetByID(context.Background(), item.ProductID)
+		if err != nil {
+			return fmt.Errorf("failed to get product %s: %v", item.ProductID, err)
+		}
+
+		// Update price
+		product.UpdatePrice(item.UnitPrice, purchase.IsVAT, true) // true = isPurchase
+
+		// Update stock
+		if purchase.IsVAT {
+			product.Stock.VAT.Purchased += item.Quantity
+			product.Stock.VAT.Remaining += item.Quantity
+		} else {
+			product.Stock.NonVAT.Purchased += item.Quantity
+			product.Stock.NonVAT.Remaining += item.Quantity
+		}
+		product.Stock.ActualStock += item.Quantity
+
+		// Save updated product
+		err = h.productRepo.Update(context.Background(), item.ProductID, product)
+		if err != nil {
+			return fmt.Errorf("failed to update product %s: %v", item.ProductID, err)
+		}
+	}
+
+	return nil
+}
+
+// generatePurchaseCode generates a unique purchase code
+func (h *MigrationHandler) generatePurchaseCode(isVAT bool) (string, error) {
+	// This is a simplified version - you might want to use the actual repository method
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+	day := now.Day()
+
+	prefix := "P"
+	if isVAT {
+		prefix = "PV"
+	}
+
+	// Simple format: P-YYYYMMDD-001 or PV-YYYYMMDD-001
+	return fmt.Sprintf("%s-%04d%02d%02d-001", prefix, year, month, day), nil
+}
+
+// GetPurchaseCSVTemplate returns a CSV template for purchase data
+func (h *MigrationHandler) GetPurchaseCSVTemplate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Create CSV template
+	template := "purchaseCode,purchaseDate,customerCode,productCode,quantity,unitPrice,isVAT,shippingCost,notes\n"
+	template += "P-001,2024-01-15,C-0001,เ-l/WH,10,299.00,true,50.00,ซื้อเสื้อเชิ้ต\n"
+	template += ",2024-01-15,C-0001,ก-32/BL,5,599.00,true,,ซื้อกางเกงยีนส์\n"
+	template += "P-002,2024-01-16,C-0002,ก-onesize/BK,2,1299.00,false,100.00,ซื้อกระเป๋า\n"
+
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=purchase_template.csv")
+	w.Write([]byte(template))
 }
