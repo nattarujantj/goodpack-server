@@ -158,38 +158,6 @@ func (h *ProductHandler) UpdateStock(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(product)
 }
 
-func (h *ProductHandler) GetInventory(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	products, err := h.repo.GetAll(r.Context())
-	if err != nil {
-		http.Error(w, "Failed to get inventory", http.StatusInternalServerError)
-		return
-	}
-
-	// Calculate inventory summary
-	var totalProducts, totalStock, lowStockProducts, outOfStockProducts int
-	for _, product := range products {
-		totalProducts++
-		totalStock += product.GetTotalStock()
-		if product.GetTotalStock() == 0 {
-			outOfStockProducts++
-		} else if product.IsLowStock() {
-			lowStockProducts++
-		}
-	}
-
-	inventory := map[string]interface{}{
-		"products":           products,
-		"totalProducts":      totalProducts,
-		"totalStock":         totalStock,
-		"lowStockProducts":   lowStockProducts,
-		"outOfStockProducts": outOfStockProducts,
-	}
-
-	json.NewEncoder(w).Encode(inventory)
-}
-
 func (h *ProductHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 

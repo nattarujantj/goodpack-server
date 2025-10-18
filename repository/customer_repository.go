@@ -144,3 +144,8 @@ func (r *CustomerRepository) generateCustomerCode() (string, error) {
 	// Format as C-0001, C-0002, etc.
 	return fmt.Sprintf("C-%04d", nextNumber), nil
 }
+
+// GenerateCustomerCode is a public method to generate customer code
+func (r *CustomerRepository) GenerateCustomerCode() (string, error) {
+	return r.generateCustomerCode()
+}

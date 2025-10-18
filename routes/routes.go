@@ -17,11 +17,11 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 
 	// Initialize handlers test2
 	productHandler := handlers.NewProductHandler(productRepo)
-	qrHandler := handlers.NewQRHandler(productRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo)
 	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, customerRepo, productRepo)
 	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo)
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
+	migrationHandler := handlers.NewMigrationHandler(customerRepo)
 
 	// API routes
 	api := router.PathPrefix("/api").Subrouter()
@@ -39,16 +39,11 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/products/category/{category}", productHandler.GetByCategory).Methods("GET")
 	api.HandleFunc("/products/low-stock", productHandler.GetLowStockProducts).Methods("GET")
 
-	// Inventory routes
-	api.HandleFunc("/inventory", productHandler.GetInventory).Methods("GET")
+	// Categories routes
 	api.HandleFunc("/categories", productHandler.GetCategories).Methods("GET")
 	api.HandleFunc("/config/categories", productHandler.GetConfigCategories).Methods("GET")
 	api.HandleFunc("/config/colors", productHandler.GetConfigColors).Methods("GET")
 	api.HandleFunc("/config/accounts", productHandler.GetConfigAccounts).Methods("GET")
-
-	// QR Code routes
-	api.HandleFunc("/qr-codes/{id}", qrHandler.GetQRCode).Methods("GET")
-	api.HandleFunc("/qr-codes/{id}/image", qrHandler.GetQRCodeImage).Methods("GET")
 
 	// Customer routes
 	api.HandleFunc("/customers", customerHandler.GetCustomers).Methods("GET")
@@ -78,6 +73,11 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/quotations/{id}", quotationHandler.UpdateQuotation).Methods("PUT")
 	api.HandleFunc("/quotations/{id}", quotationHandler.DeleteQuotation).Methods("DELETE")
 	api.HandleFunc("/quotations/{id}/copy-to-sale", quotationHandler.CopyToSale).Methods("GET")
+
+	// Migration routes
+	api.HandleFunc("/migration/customers/csv", migrationHandler.MigrateCustomersFromCSV).Methods("POST")
+	api.HandleFunc("/migration/customers/template", migrationHandler.GetCustomerCSVTemplate).Methods("GET")
+	api.HandleFunc("/migration/status", migrationHandler.GetMigrationStatus).Methods("GET")
 
 	// Static file serving for uploaded images
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads/"))))
