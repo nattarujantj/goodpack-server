@@ -11,9 +11,44 @@
       "english": "cap"
     },
     {
+      "name": "ฝาเพรส",
+      "abbreviation": "PRS",
+      "english": "press cap"
+    },
+    {
+      "name": "ฝาฟลิบ",
+      "abbreviation": "FLP",
+      "english": "flip cap"
+    },
+    {
+      "name": "ฝาเกลียว",
+      "abbreviation": "CP-SCR",
+      "english": "screw cap"
+    },
+    {
+      "name": "ฝาครอบดีเทอร์เจ้น",
+      "abbreviation": "CP-DT",
+      "english": "detergent cap"
+    },
+    {
+      "name": "ฝาซอส",
+      "abbreviation": "CP-SCE",
+      "english": "sauce cap"
+    },
+    {
+      "name": "ฝาหวีทอง",
+      "abbreviation": "CP-E",
+      "english": "wee tong cap"
+    },
+    {
       "name": "ปั๊ม",
       "abbreviation": "PM",
       "english": "pump"
+    },
+    {
+      "name": "ปั๊มโฟมมูส",
+      "abbreviation": "PM-FM",
+      "english": "foam pump"
     },
     {
       "name": "ฟ็อกกี้",
@@ -39,6 +74,56 @@
       "name": "อื่นๆ",
       "abbreviation": "OT",
       "english": "others"
+    },
+    {
+      "name": "ขวดเคมี",
+      "abbreviation": "BT-CHEM",
+      "english": "chemical bottle"
+    },
+    {
+      "name": "ขวดโฟมมูส",
+      "abbreviation": "BT-FM",
+      "english": "foam bottle"
+    },
+    {
+      "name": "ขวดสูญญากาศ",
+      "abbreviation": "BT",
+      "english": "vacuum bottle"
+    },
+    {
+      "name": "แกลลอน",
+      "abbreviation": "GL",
+      "english": "gallon"
+    },
+    {
+      "name": "ถัง",
+      "abbreviation": "TNK",
+      "english": "tank"
+    },
+    {
+      "name": "สเปรย์การ์ด",
+      "abbreviation": "SPC",
+      "english": "spray card"
+    },
+    {
+      "name": "พรีฟอร์ม",
+      "abbreviation": "PF-BT",
+      "english": "preform bottle"
+    },
+    {
+      "name": "กระปุก",
+      "abbreviation": "J",
+      "english": "jar"
+    },
+    {
+      "name": "ฝากระปุก",
+      "abbreviation": "JC",
+      "english": "jar cap"
+    },
+    {
+      "name": "ท่อ",
+      "abbreviation": "TUBE",
+      "english": "tube"
     }
   ]
 }

@@ -84,6 +84,51 @@
       "name": "อื่นๆ",
       "abbreviation": "OT",
       "english": "others"
+    },
+    {
+      "name": "ใส",
+      "abbreviation": "CL",
+      "english": "clear"
+    },
+    {
+      "name": "ใสเหลือง",
+      "abbreviation": "CLYL",
+      "english": "clear yellow"
+    },
+    {
+      "name": "ขาวทึบ",
+      "abbreviation": "SLWH",
+      "english": "solid white"
+    },
+    {
+      "name": "ขาวขุ่น",
+      "abbreviation": "OQWH",
+      "english": "opaque white"
+    },
+    {
+      "name": "ชาใส",
+      "abbreviation": "CLBR",
+      "english": "clear brown"
+    },
+    {
+      "name": "ใสขุ่น",
+      "abbreviation": "TSLC",
+      "english": "translucent"
+    },
+    {
+      "name": "ดำทึบ",
+      "abbreviation": "SLBK",
+      "english": "solid black"
+    },
+    {
+      "name": "น้ำเงินใส",
+      "abbreviation": "CLBL",
+      "english": "clear blue"
+    },
+    {
+      "name": "ฟ้าใส",
+      "abbreviation": "CLCY",
+      "english": "clear cyan"
     }
   ]
 }
