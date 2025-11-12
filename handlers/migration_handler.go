@@ -1219,16 +1219,8 @@ func (h *MigrationHandler) updateProductsFromSale(sale *models.Sale) error {
 		}
 		product.Stock.ActualStock -= item.Quantity
 
-		// Ensure stock doesn't go negative
-		if product.Stock.ActualStock < 0 {
-			product.Stock.ActualStock = 0
-		}
-		if product.Stock.VAT.Remaining < 0 {
-			product.Stock.VAT.Remaining = 0
-		}
-		if product.Stock.NonVAT.Remaining < 0 {
-			product.Stock.NonVAT.Remaining = 0
-		}
+		// Allow negative stock values to indicate abnormal stock status
+		// Negative values will be visible in UI to show stock issues
 
 		// Save updated product
 		err = h.productRepo.Update(context.Background(), item.ProductID, product)

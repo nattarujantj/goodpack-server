@@ -15,16 +15,18 @@ import (
 )
 
 type PurchaseHandler struct {
-	purchaseRepo *repository.PurchaseRepository
-	customerRepo *repository.CustomerRepository
-	productRepo  *repository.ProductRepository
+	purchaseRepo        *repository.PurchaseRepository
+	customerRepo        *repository.CustomerRepository
+	productRepo         *repository.ProductRepository
+	stockAdjustmentRepo *repository.StockAdjustmentRepository
 }
 
-func NewPurchaseHandler(purchaseRepo *repository.PurchaseRepository, customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository) *PurchaseHandler {
+func NewPurchaseHandler(purchaseRepo *repository.PurchaseRepository, customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) *PurchaseHandler {
 	return &PurchaseHandler{
-		purchaseRepo: purchaseRepo,
-		customerRepo: customerRepo,
-		productRepo:  productRepo,
+		purchaseRepo:        purchaseRepo,
+		customerRepo:        customerRepo,
+		productRepo:         productRepo,
+		stockAdjustmentRepo: stockAdjustmentRepo,
 	}
 }
 
@@ -258,18 +260,41 @@ func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *model
 		// Update purchase price using new UpdatePrice method
 		product.UpdatePrice(item.UnitPrice, purchase.IsVAT, true) // true = isPurchase
 
-		// Update stock
-		product.Stock.ActualStock += item.Quantity
+		// Determine stock type based on VAT status
+		var stockType models.StockType
 		if purchase.IsVAT {
-			product.Stock.VAT.Purchased += item.Quantity
-			product.Stock.VAT.Remaining += item.Quantity
+			stockType = models.StockTypeVAT
 		} else {
-			product.Stock.NonVAT.Purchased += item.Quantity
-			product.Stock.NonVAT.Remaining += item.Quantity
+			stockType = models.StockTypeNonVAT
 		}
 
+		// Apply stock adjustment using centralized stock management logic
+		ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, item.Quantity)
+
 		// Save updated product
-		h.productRepo.Update(ctx, item.ProductID, product)
+		if err := h.productRepo.Update(ctx, item.ProductID, product); err != nil {
+			continue
+		}
+
+		// Record stock change in history
+		purchaseID := purchase.ID.Hex()
+		purchaseCode := purchase.PurchaseCode
+		notes := fmt.Sprintf("ซื้อจากรายการ %s", purchaseCode)
+		if err := RecordStockChange(
+			ctx,
+			h.stockAdjustmentRepo,
+			product,
+			models.SourceTypePurchase,
+			&purchaseID,
+			&purchaseCode,
+			models.AdjustmentTypeAdd,
+			stockType,
+			item.Quantity,
+			&notes,
+		); err != nil {
+			// Log error but don't fail the purchase
+			fmt.Printf("Warning: Failed to record stock change history: %v\n", err)
+		}
 	}
 
 	return nil

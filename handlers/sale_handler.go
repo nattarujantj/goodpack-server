@@ -14,20 +14,22 @@ import (
 )
 
 type SaleHandler struct {
-	saleRepo           *repository.SaleRepository
-	customerRepo       *repository.CustomerRepository
-	productRepo        *repository.ProductRepository
-	quotationRepo      *repository.QuotationRepository
-	bankAccountService *services.BankAccountService
+	saleRepo            *repository.SaleRepository
+	customerRepo        *repository.CustomerRepository
+	productRepo         *repository.ProductRepository
+	quotationRepo       *repository.QuotationRepository
+	stockAdjustmentRepo *repository.StockAdjustmentRepository
+	bankAccountService  *services.BankAccountService
 }
 
-func NewSaleHandler(saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, quotationRepo *repository.QuotationRepository) *SaleHandler {
+func NewSaleHandler(saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, quotationRepo *repository.QuotationRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) *SaleHandler {
 	return &SaleHandler{
-		saleRepo:           saleRepo,
-		customerRepo:       customerRepo,
-		productRepo:        productRepo,
-		quotationRepo:      quotationRepo,
-		bankAccountService: services.NewBankAccountService(),
+		saleRepo:            saleRepo,
+		customerRepo:        customerRepo,
+		productRepo:         productRepo,
+		quotationRepo:       quotationRepo,
+		stockAdjustmentRepo: stockAdjustmentRepo,
+		bankAccountService:  services.NewBankAccountService(),
 	}
 }
 
@@ -154,20 +156,41 @@ func (h *SaleHandler) CreateSale(w http.ResponseWriter, r *http.Request) {
 		// Update sale price using new UpdatePrice method
 		product.UpdatePrice(item.UnitPrice, sale.IsVAT, false) // false = isSale
 
-		// Update stock based on VAT status
+		// Determine stock type based on VAT status
+		var stockType models.StockType
 		if sale.IsVAT {
-			product.Stock.VAT.Remaining -= item.Quantity
+			stockType = models.StockTypeVAT
 		} else {
-			product.Stock.NonVAT.Remaining -= item.Quantity
+			stockType = models.StockTypeNonVAT
 		}
 
-		// Always deduct from ActualStock when selling
-		product.Stock.ActualStock -= item.Quantity
+		// Apply stock adjustment using centralized stock management logic
+		ApplyStockAdjustment(product, models.AdjustmentTypeReduce, stockType, item.Quantity)
 
 		// Update product
 		if err := h.productRepo.Update(ctx, item.ProductID, product); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to update product stock: %s", item.ProductID), http.StatusInternalServerError)
 			return
+		}
+
+		// Record stock change in history
+		saleID := sale.ID.Hex()
+		saleCode := sale.SaleCode
+		notes := fmt.Sprintf("ขายจากรายการ %s", saleCode)
+		if err := RecordStockChange(
+			ctx,
+			h.stockAdjustmentRepo,
+			product,
+			models.SourceTypeSale,
+			&saleID,
+			&saleCode,
+			models.AdjustmentTypeReduce,
+			stockType,
+			item.Quantity,
+			&notes,
+		); err != nil {
+			// Log error but don't fail the sale
+			fmt.Printf("Warning: Failed to record stock change history: %v\n", err)
 		}
 	}
 
@@ -214,17 +237,18 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Restore stock for old items
+	// Restore stock for old items using stock management logic
 	for _, item := range existingSale.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err == nil {
+			var stockType models.StockType
 			if existingSale.IsVAT {
-				product.Stock.VAT.Remaining += item.Quantity
+				stockType = models.StockTypeVAT
 			} else {
-				product.Stock.NonVAT.Remaining += item.Quantity
+				stockType = models.StockTypeNonVAT
 			}
-			// Restore ActualStock
-			product.Stock.ActualStock += item.Quantity
+			// Restore stock by adding back (reverse the reduce operation)
+			ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, item.Quantity)
 			h.productRepo.Update(ctx, item.ProductID, product)
 		}
 	}
@@ -232,7 +256,7 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 	// Update sale
 	existingSale.UpdateFromRequest(&saleReq)
 
-	// Cut stock for new items
+	// Cut stock for new items using stock management logic
 	for _, item := range existingSale.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err != nil {
@@ -240,15 +264,16 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Update stock based on VAT status
+		// Determine stock type based on VAT status
+		var stockType models.StockType
 		if existingSale.IsVAT {
-			product.Stock.VAT.Remaining -= item.Quantity
+			stockType = models.StockTypeVAT
 		} else {
-			product.Stock.NonVAT.Remaining -= item.Quantity
+			stockType = models.StockTypeNonVAT
 		}
 
-		// Always deduct from ActualStock when selling
-		product.Stock.ActualStock -= item.Quantity
+		// Apply stock adjustment using centralized stock management logic
+		ApplyStockAdjustment(product, models.AdjustmentTypeReduce, stockType, item.Quantity)
 
 		// Update product
 		if err := h.productRepo.Update(ctx, item.ProductID, product); err != nil {
@@ -285,17 +310,18 @@ func (h *SaleHandler) DeleteSale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Restore stock for all items
+	// Restore stock for all items using stock management logic
 	for _, item := range existingSale.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err == nil {
+			var stockType models.StockType
 			if existingSale.IsVAT {
-				product.Stock.VAT.Remaining += item.Quantity
+				stockType = models.StockTypeVAT
 			} else {
-				product.Stock.NonVAT.Remaining += item.Quantity
+				stockType = models.StockTypeNonVAT
 			}
-			// Restore ActualStock
-			product.Stock.ActualStock += item.Quantity
+			// Restore stock by adding back (reverse the reduce operation)
+			ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, item.Quantity)
 			h.productRepo.Update(ctx, item.ProductID, product)
 		}
 	}

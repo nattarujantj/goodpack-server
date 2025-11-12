@@ -12,16 +12,17 @@ import (
 	"goodpack-server/repository"
 )
 
-func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository) http.Handler {
+func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) http.Handler {
 	router := mux.NewRouter()
 
 	// Initialize handlers test2
 	productHandler := handlers.NewProductHandler(productRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo)
-	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, customerRepo, productRepo)
-	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo)
+	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, customerRepo, productRepo, stockAdjustmentRepo)
+	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo, stockAdjustmentRepo)
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
 	migrationHandler := handlers.NewMigrationHandler(customerRepo, productRepo, purchaseRepo, saleRepo)
+	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
 
 	// API routes
 	api := router.PathPrefix("/api").Subrouter()
@@ -38,6 +39,13 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/products/{id}/image", productHandler.DeleteProductImage).Methods("DELETE")
 	api.HandleFunc("/products/category/{category}", productHandler.GetByCategory).Methods("GET")
 	api.HandleFunc("/products/low-stock", productHandler.GetLowStockProducts).Methods("GET")
+
+	// Stock Adjustment routes
+	api.HandleFunc("/products/{id}/stock/adjust", stockAdjustmentHandler.AdjustStock).Methods("POST")
+	api.HandleFunc("/products/{id}/stock/history", stockAdjustmentHandler.GetStockHistory).Methods("GET")
+	api.HandleFunc("/stock/history", stockAdjustmentHandler.GetAllStockHistory).Methods("GET")
+	api.HandleFunc("/stock/history/source", stockAdjustmentHandler.GetStockHistoryBySource).Methods("GET")
+	api.HandleFunc("/stock/adjustments/{id}", stockAdjustmentHandler.DeleteStockAdjustment).Methods("DELETE")
 
 	// Categories routes
 	api.HandleFunc("/categories", productHandler.GetCategories).Methods("GET")
