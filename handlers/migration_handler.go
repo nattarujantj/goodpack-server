@@ -359,6 +359,14 @@ func (h *MigrationHandler) parseAndMigrateProductCSV(file io.Reader) (*Migration
 		}
 	}
 
+	// Debug: Log all headers found and check for color
+	fmt.Printf("DEBUG: All headers found in CSV: %v\n", headerMap)
+	if colorIndex, exists := headerMap["color"]; exists {
+		fmt.Printf("DEBUG: Color header found at index: %d\n", colorIndex)
+	} else {
+		fmt.Printf("WARNING: Color header not found! Available headers: %v\n", headerMap)
+	}
+
 	result := &MigrationResult{
 		TotalRows:   len(records) - 1, // Exclude header row
 		SuccessRows: 0,
@@ -372,15 +380,24 @@ func (h *MigrationHandler) parseAndMigrateProductCSV(file io.Reader) (*Migration
 		rowNum := i + 2 // +2 because we start from row 2 (after header)
 
 		// Create product from CSV row
+		colorValue := h.getFieldValue(record, headerMap, "color")
+		descriptionValue := h.getFieldValue(record, headerMap, "description")
 		product := &models.Product{
 			SKUID:       h.getFieldValue(record, headerMap, "skuid"),
 			Name:        h.getFieldValue(record, headerMap, "name"),
-			Description: h.getFieldValue(record, headerMap, "description"),
-			Color:       h.getFieldValue(record, headerMap, "color"),
+			Description: descriptionValue,
+			Color:       colorValue,
 			Size:        h.getFieldValue(record, headerMap, "size"),
 			Category:    h.getFieldValue(record, headerMap, "category"),
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
+		}
+
+		// Debug: Log parsed values for first row
+		if i == 0 {
+			fmt.Printf("Row %d: Color value parsed: '%s' (length: %d)\n", rowNum, colorValue, len(colorValue))
+			fmt.Printf("Row %d: Description value parsed: '%s' (length: %d)\n", rowNum, descriptionValue, len(descriptionValue))
+			fmt.Printf("Row %d: Product before save - Color: '%s', Description: '%s'\n", rowNum, product.Color, product.Description)
 		}
 
 		// Validate required fields

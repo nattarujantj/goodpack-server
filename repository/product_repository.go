@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -27,23 +28,42 @@ func NewProductRepository(collection *mongo.Collection) *ProductRepository {
 }
 
 func (r *ProductRepository) Create(ctx context.Context, product *models.Product) error {
-	// Generate SKU ID
-	existingSKUs, err := r.getAllSKUIDs(ctx)
+	// Generate SKU ID (only if not already set, e.g., from migration)
+	if product.SKUID == "" {
+		existingSKUs, err := r.getAllSKUIDs(ctx)
+		if err != nil {
+			return err
+		}
+
+		nextNumber := r.skuGenerator.GetNextSKUNumber(product.Category, existingSKUs)
+		product.SKUID = r.skuGenerator.GenerateSKUID(product.Category, nextNumber)
+	}
+
+	// Generate Product Code (only if not already set, e.g., from migration)
+	if product.Code == "" {
+		product.Code = r.skuGenerator.GenerateProductCode(product.Category, product.Size, product.Color)
+	}
+
+	// Generate QR Data
+	if product.QRData == "" {
+		product.QRData = product.SKUID // Use SKU ID as QR data
+	}
+
+	// Debug: Log product fields before saving
+	fmt.Printf("DEBUG: Saving product - Name: '%s', Color: '%s' (length: %d), Description: '%s' (length: %d)\n",
+		product.Name, product.Color, len(product.Color), product.Description, len(product.Description))
+
+	result, err := r.collection.InsertOne(ctx, product)
 	if err != nil {
+		fmt.Printf("ERROR: Failed to insert product: %v\n", err)
 		return err
 	}
 
-	nextNumber := r.skuGenerator.GetNextSKUNumber(product.Category, existingSKUs)
-	product.SKUID = r.skuGenerator.GenerateSKUID(product.Category, nextNumber)
-
-	// Generate Product Code
-	product.Code = r.skuGenerator.GenerateProductCode(product.Category, product.Size, product.Color)
-
-	// Generate QR Data
-	product.QRData = product.SKUID // Use SKU ID as QR data
-
-	_, err = r.collection.InsertOne(ctx, product)
-	return err
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		product.ID = oid
+		fmt.Printf("DEBUG: Product saved successfully - ID: %s\n", product.ID.Hex())
+	}
+	return nil
 }
 
 func (r *ProductRepository) GetByID(ctx context.Context, id string) (*models.Product, error) {
