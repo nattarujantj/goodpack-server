@@ -20,6 +20,7 @@ type Sale struct {
 	Phone             *string            `bson:"phone,omitempty" json:"phone,omitempty"`
 	Items             []SaleItem         `bson:"items" json:"items"`
 	IsVAT             bool               `bson:"isVAT" json:"isVAT"`
+	VatType           string             `bson:"vatType" json:"vatType"` // "exclusive" (VAT นอก) or "inclusive" (VAT ใน)
 	ShippingCost      float64            `bson:"shippingCost" json:"shippingCost"`
 	Payment           PaymentInfo        `bson:"payment" json:"payment"`
 	Warehouse         WarehouseInfo      `bson:"warehouse" json:"warehouse"`
@@ -46,6 +47,7 @@ type SaleRequest struct {
 	CustomerID        string        `json:"customerId"`
 	Items             []SaleItem    `json:"items"`
 	IsVAT             bool          `json:"isVAT"`
+	VatType           string        `json:"vatType"` // "exclusive" or "inclusive"
 	ShippingCost      float64       `json:"shippingCost"`
 	Payment           PaymentInfo   `json:"payment"`
 	Warehouse         WarehouseInfo `json:"warehouse"`
@@ -59,11 +61,16 @@ type SaleRequest struct {
 
 func (sr *SaleRequest) ToSale() *Sale {
 	now := time.Now()
+	vatType := sr.VatType
+	if vatType == "" {
+		vatType = "exclusive" // Default to VAT นอก
+	}
 	return &Sale{
 		SaleDate:          sr.SaleDate,
 		CustomerID:        sr.CustomerID,
 		Items:             sr.Items,
 		IsVAT:             sr.IsVAT,
+		VatType:           vatType,
 		ShippingCost:      sr.ShippingCost,
 		Payment:           sr.Payment,
 		Warehouse:         sr.Warehouse,
@@ -79,10 +86,15 @@ func (sr *SaleRequest) ToSale() *Sale {
 }
 
 func (s *Sale) UpdateFromRequest(req *SaleRequest) {
+	vatType := req.VatType
+	if vatType == "" {
+		vatType = "exclusive" // Default to VAT นอก
+	}
 	s.SaleDate = req.SaleDate
 	s.CustomerID = req.CustomerID
 	s.Items = req.Items
 	s.IsVAT = req.IsVAT
+	s.VatType = vatType
 	s.ShippingCost = req.ShippingCost
 	s.Payment = req.Payment
 	s.Warehouse = req.Warehouse
