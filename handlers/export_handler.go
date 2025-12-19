@@ -70,12 +70,14 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 
 	log.Printf("📤 Export request: Month=%d, Year=%d, Emails=%v", req.Month, req.Year, req.Emails)
 
+	ctx := r.Context()
+
 	// Calculate date range for the month
 	startDate := time.Date(req.Year, time.Month(req.Month), 1, 0, 0, 0, 0, time.Local)
 	endDate := startDate.AddDate(0, 1, 0).Add(-time.Second) // Last second of the month
 
 	// Fetch purchases for the month
-	allPurchases, err := h.purchaseRepo.GetAll()
+	allPurchases, err := h.purchaseRepo.GetAll(ctx)
 	if err != nil {
 		log.Printf("❌ Failed to fetch purchases: %v", err)
 		sendErrorResponse(w, "Failed to fetch purchases")
@@ -86,12 +88,12 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 	var purchases []models.Purchase
 	for _, p := range allPurchases {
 		if p.PurchaseDate.After(startDate.Add(-time.Second)) && p.PurchaseDate.Before(endDate.Add(time.Second)) {
-			purchases = append(purchases, p)
+			purchases = append(purchases, *p)
 		}
 	}
 
 	// Fetch sales for the month
-	allSales, err := h.saleRepo.GetAll()
+	allSales, err := h.saleRepo.GetAll(ctx)
 	if err != nil {
 		log.Printf("❌ Failed to fetch sales: %v", err)
 		sendErrorResponse(w, "Failed to fetch sales")
