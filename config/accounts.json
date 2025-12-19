@@ -17,14 +17,14 @@
     "id": "b03",
     "name": "บริษัทกู๊ดแพ็คเกจจิ้งซัพพลาย จำกัด",
     "accountNumber": "106-3-40679-8",
-    "bankName": "Kbank",
+    "bankName": "กสิกร",
     "isActive": true
   },
   {
     "id": "b04",
     "name": "บริษัทกู๊ดแพ็คเกจจิ้งซัพพลาย จำกัด",
     "accountNumber": "416-167528-9",
-    "bankName": "SCB",
+    "bankName": "ไทยพาณิชย์",
     "isActive": true
   },
   {
@@ -45,14 +45,14 @@
     "id": "b07",
     "name": "สุภาวดี บูรณะโอสถ",
     "accountNumber": "024-2-87695-8",
-    "bankName": "SCB",
+    "bankName": "ไทยพาณิชย์",
     "isActive": true
   },
   {
     "id": "b08",
     "name": "สุภาวดี บูรณะโอสถ",
     "accountNumber": "022-3-81912-5",
-    "bankName": "KBank",
+    "bankName": "กสิกร",
     "isActive": true
   },
   {
@@ -80,7 +80,7 @@
     "id": "b13",
     "name": "กิติพัฒน์ บูรณะโอสถ",
     "accountNumber": "024-2-87696-6",
-    "bankName": "SCB",
+    "bankName": "ไทยพาณิชย์",
     "isActive": true
   },
   {
@@ -101,7 +101,7 @@
     "id": "b16",
     "name": "ณัฐรุจา บูรณะโอสถ",
     "accountNumber": "055-0-24064-0",
-    "bankName": "KTB",
+    "bankName": "กรุงไทย",
     "isActive": true
   },
   {
