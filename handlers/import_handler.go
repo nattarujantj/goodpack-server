@@ -143,6 +143,8 @@ func (h *ImportHandler) ImportCustomers(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("X-Import-Success", strconv.Itoa(successCount))
 	w.Header().Set("X-Import-Failed", strconv.Itoa(failCount))
 	w.Header().Set("X-Import-Total", strconv.Itoa(successCount+failCount))
+	// Expose custom headers for CORS
+	w.Header().Set("Access-Control-Expose-Headers", "X-Import-Success, X-Import-Failed, X-Import-Total")
 
 	w.Write(resultBuffer.Bytes())
 }
@@ -314,6 +316,8 @@ func (h *ImportHandler) ImportProducts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Import-Success", strconv.Itoa(successCount))
 	w.Header().Set("X-Import-Failed", strconv.Itoa(failCount))
 	w.Header().Set("X-Import-Total", strconv.Itoa(successCount+failCount))
+	// Expose custom headers for CORS
+	w.Header().Set("Access-Control-Expose-Headers", "X-Import-Success, X-Import-Failed, X-Import-Total")
 
 	w.Write(resultBuffer.Bytes())
 }
