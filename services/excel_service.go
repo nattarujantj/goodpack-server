@@ -344,17 +344,32 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), items)
 		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), dataStyle)
 
-		// Calculate values
-		var beforeVAT float64
+		// Calculate values based on vatType
+		var itemsTotal float64
 		for _, item := range sale.Items {
-			beforeVAT += item.TotalPrice
+			itemsTotal += item.TotalPrice
 		}
-		vatAmount := 0.0
-		if isVAT {
-			vatAmount = beforeVAT * 0.07
-		}
-		afterVAT := beforeVAT + vatAmount
+		
+		var beforeVAT, vatAmount, afterVAT float64
 		shipping := sale.ShippingCost
+		
+		if isVAT {
+			if sale.VatType == "inclusive" {
+				// VAT ใน: ราคาที่กรอกรวม VAT แล้ว
+				beforeVAT = itemsTotal / 1.07
+				vatAmount = itemsTotal - beforeVAT
+				afterVAT = itemsTotal
+			} else {
+				// VAT นอก: ราคา + VAT 7%
+				beforeVAT = itemsTotal
+				vatAmount = itemsTotal * 0.07
+				afterVAT = itemsTotal + vatAmount
+			}
+		} else {
+			beforeVAT = itemsTotal
+			vatAmount = 0
+			afterVAT = itemsTotal
+		}
 		total := afterVAT + shipping
 
 		// ราคารวมก่อน VAT
