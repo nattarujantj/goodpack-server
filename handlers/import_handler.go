@@ -146,6 +146,8 @@ func (h *ImportHandler) ImportCustomers(w http.ResponseWriter, r *http.Request) 
 	// Expose custom headers for CORS
 	w.Header().Set("Access-Control-Expose-Headers", "X-Import-Success, X-Import-Failed, X-Import-Total")
 
+	// Write BOM for Excel UTF-8 support
+	w.Write([]byte{0xEF, 0xBB, 0xBF})
 	w.Write(resultBuffer.Bytes())
 }
 
@@ -319,6 +321,8 @@ func (h *ImportHandler) ImportProducts(w http.ResponseWriter, r *http.Request) {
 	// Expose custom headers for CORS
 	w.Header().Set("Access-Control-Expose-Headers", "X-Import-Success, X-Import-Failed, X-Import-Total")
 
+	// Write BOM for Excel UTF-8 support
+	w.Write([]byte{0xEF, 0xBB, 0xBF})
 	w.Write(resultBuffer.Bytes())
 }
 
