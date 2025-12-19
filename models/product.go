@@ -47,16 +47,18 @@ type Price struct {
 
 // StockInfo represents stock information for VAT and Non-VAT
 type StockInfo struct {
-	Purchased int `bson:"purchased" json:"purchased"` // ซื้อ
-	Sold      int `bson:"sold" json:"sold"`           // ขาย
-	Remaining int `bson:"remaining" json:"remaining"` // คงเหลือ
+	InitialStock int `bson:"initialStock" json:"initialStock"` // สินค้ายกยอดมา
+	Purchased    int `bson:"purchased" json:"purchased"`       // ซื้อ
+	Sold         int `bson:"sold" json:"sold"`                 // ขาย
+	Remaining    int `bson:"remaining" json:"remaining"`       // คงเหลือ
 }
 
 // Stock represents all stock information
 type Stock struct {
-	VAT         StockInfo `bson:"vat" json:"vat"`                 // สต็อก VAT
-	NonVAT      StockInfo `bson:"nonVAT" json:"nonVAT"`           // สต็อก Non-VAT
-	ActualStock int       `bson:"actualStock" json:"actualStock"` // สินค้าคงเหลือจริง
+	VAT                StockInfo `bson:"vat" json:"vat"`                                   // สต็อก VAT
+	NonVAT             StockInfo `bson:"nonVAT" json:"nonVAT"`                             // สต็อก Non-VAT
+	ActualStockInitial int       `bson:"actualStockInitial" json:"actualStockInitial"`    // ยกยอด ActualStock
+	ActualStock        int       `bson:"actualStock" json:"actualStock"`                  // สินค้าคงเหลือจริง
 }
 
 // Product represents a product in the inventory

@@ -26,8 +26,8 @@ func NewStockAdjustmentHandler(adjustmentRepo *repository.StockAdjustmentReposit
 	}
 }
 
-// ApplyStockAdjustment applies stock adjustment to a product (core logic)
-// Allows negative stock values to indicate abnormal stock status
+// ApplyStockAdjustment applies stock adjustment to a product (for Purchase/Sale)
+// This modifies Purchased/Sold and Remaining
 func ApplyStockAdjustment(
 	product *models.Product,
 	adjustmentType models.StockAdjustmentType,
@@ -36,12 +36,10 @@ func ApplyStockAdjustment(
 ) {
 	if stockType == models.StockTypeActualStock {
 		// For ActualStock, just add or subtract directly
-		// Allow negative values to show abnormal stock status
 		if adjustmentType == models.AdjustmentTypeAdd {
 			product.Stock.ActualStock += quantity
 		} else {
 			product.Stock.ActualStock -= quantity
-			// Allow negative stock to indicate abnormal status
 		}
 	} else {
 		// For VAT or NonVAT
@@ -62,10 +60,44 @@ func ApplyStockAdjustment(
 			// ลด: บวกใน Sold และลด Remaining
 			stockInfo.Sold += quantity
 			stockInfo.Remaining -= quantity
-			// Allow negative remaining to indicate abnormal status
 			// Also update ActualStock
 			product.Stock.ActualStock -= quantity
-			// Allow negative ActualStock to indicate abnormal status
+		}
+	}
+}
+
+// ApplyManualStockAdjustment applies manual stock adjustment (from UI "แก้ไขสต็อก")
+// This modifies InitialStock and Remaining (not Purchased/Sold)
+func ApplyManualStockAdjustment(
+	product *models.Product,
+	adjustmentType models.StockAdjustmentType,
+	stockType models.StockType,
+	quantity int,
+) {
+	if stockType == models.StockTypeActualStock {
+		// For ActualStock: modify ActualStockInitial and ActualStock
+		if adjustmentType == models.AdjustmentTypeAdd {
+			product.Stock.ActualStockInitial += quantity
+			product.Stock.ActualStock += quantity
+		} else {
+			product.Stock.ActualStockInitial -= quantity
+			product.Stock.ActualStock -= quantity
+		}
+	} else {
+		// For VAT or NonVAT: modify InitialStock and Remaining
+		var stockInfo *models.StockInfo
+		if stockType == models.StockTypeVAT {
+			stockInfo = &product.Stock.VAT
+		} else {
+			stockInfo = &product.Stock.NonVAT
+		}
+
+		if adjustmentType == models.AdjustmentTypeAdd {
+			stockInfo.InitialStock += quantity
+			stockInfo.Remaining += quantity
+		} else {
+			stockInfo.InitialStock -= quantity
+			stockInfo.Remaining -= quantity
 		}
 	}
 }
@@ -156,8 +188,8 @@ func (h *StockAdjustmentHandler) AdjustStock(w http.ResponseWriter, r *http.Requ
 	// Create adjustment record (before values)
 	adjustment := req.ToStockAdjustment(product, models.SourceTypeAdjustment, nil, nil)
 
-	// Apply stock adjustment using centralized logic
-	ApplyStockAdjustment(product, req.AdjustmentType, req.StockType, req.Quantity)
+	// Apply manual stock adjustment (modifies InitialStock, not Purchased/Sold)
+	ApplyManualStockAdjustment(product, req.AdjustmentType, req.StockType, req.Quantity)
 
 	// Update product
 	product.UpdatedAt = time.Now()
