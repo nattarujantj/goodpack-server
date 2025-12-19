@@ -23,6 +23,7 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
 	migrationHandler := handlers.NewMigrationHandler(customerRepo, productRepo, purchaseRepo, saleRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
+	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo)
 
 	// API routes
 	api := router.PathPrefix("/api").Subrouter()
@@ -93,6 +94,9 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/migration/sales/csv", migrationHandler.MigrateSalesFromCSV).Methods("POST")
 	api.HandleFunc("/migration/sales/template", migrationHandler.GetSaleCSVTemplate).Methods("GET")
 	api.HandleFunc("/migration/status", migrationHandler.GetMigrationStatus).Methods("GET")
+
+	// Export routes
+	api.HandleFunc("/export/email", exportHandler.ExportAndSendEmail).Methods("POST")
 
 	// Static file serving for uploaded images
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads/"))))

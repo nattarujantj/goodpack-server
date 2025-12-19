@@ -6,6 +6,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/joho/godotenv v1.5.1
 	github.com/rs/cors v1.10.1
+	github.com/xuri/excelize/v2 v2.8.0
 	go.mongodb.org/mongo-driver v1.13.1
 )
 
