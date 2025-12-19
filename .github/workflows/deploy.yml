@@ -1,21 +1,43 @@
-name: Deploy to VPS
+name: Deploy Go Server
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
+  workflow_dispatch:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
-    - name: Deploy to VPS
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USERNAME }}
-        key: ${{ secrets.VPS_SSH_KEY }}
-        script: |
-          cd /opt/goodpack
-          chmod +x deploy.sh
-          ./deploy.sh
+      - name: Deploy Go Server
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 Deploying Go Server"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          cd /opt/goodpack-server
+          
+          echo "📥 Pulling latest code..."
+          git fetch origin
+          git reset --hard origin/master
+          
+          echo "🔨 Building server..."
+          go mod tidy
+          go build -o server
+          
+          echo "🔄 Restarting server..."
+          pkill -f "./server" || true
+          sleep 2
+          nohup ./server > server.log 2>&1 &
+          sleep 3
+          
+          if curl -s http://localhost:8080/api/health > /dev/null 2>&1; then
+            echo "✅ Go Server deployed successfully!"
+            echo "📡 API: http://192.168.1.162:8080/api"
+          else
+            echo "❌ Server health check failed"
+            tail -20 server.log
+            exit 1
+          fi
