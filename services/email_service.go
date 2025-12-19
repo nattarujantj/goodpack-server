@@ -173,7 +173,7 @@ func (s *EmailService) BuildEmailBody(month int, year int, purchaseCount int, sa
             <p>รายงานประจำเดือน %s %d</p>
         </div>
         <div class="content">
-            <p>สวัสดีครับ/ค่ะ</p>
+            <p>เรียน</p>
             <p>แนบไฟล์ Excel รายงานซื้อ-ขายประจำเดือน <strong>%s %d</strong> มาพร้อมกับอีเมลนี้</p>
             
             <div class="summary">
@@ -188,15 +188,15 @@ func (s *EmailService) BuildEmailBody(month int, year int, purchaseCount int, sa
                 </div>
             </div>
             
-            <p>ไฟล์ Excel ประกอบด้วย 2 Sheet:</p>
+            <p>ไฟล์ Excel ประกอบด้วย:</p>
             <ul>
                 <li><strong>รายการซื้อ</strong> - รายละเอียดการซื้อทั้งหมด</li>
                 <li><strong>รายการขาย</strong> - รายละเอียดการขายทั้งหมด</li>
             </ul>
         </div>
         <div class="footer">
-            <p>อีเมลนี้ถูกส่งจากระบบ GoodPack Inventory Management</p>
-            <p>© %d GoodPack. All rights reserved.</p>
+            <p>อีเมลนี้ถูกส่งจากระบบ GoodPackagingSupply Inventory Management</p>
+            <p>© %d Nattarujantj. All rights reserved.</p>
         </div>
     </div>
 </body>
