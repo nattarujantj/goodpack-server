@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/xuri/excelize/v2"
 	"goodpack-server/models"
+
+	"github.com/xuri/excelize/v2"
 )
 
 type ExcelService struct{}
@@ -82,16 +83,16 @@ func getCustomerDisplayName(customerName string, taxID *string) string {
 func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purchases []models.Purchase, monthName string, year int, isVAT bool) {
 	// Set column widths
 	// A: ลำดับ, B: รหัส, C: วันที่, D: ชื่อลูกค้า, E: รายการสินค้า, F: ราคารวมก่อน VAT, G: VAT, H: ราคารวม, I: ค่าส่ง, J: รวมทั้งหมด
-	f.SetColWidth(sheet, "A", "A", 5)   // ลำดับ
-	f.SetColWidth(sheet, "B", "B", 15)  // รหัส
-	f.SetColWidth(sheet, "C", "C", 12)  // วันที่
-	f.SetColWidth(sheet, "D", "D", 40)  // ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
-	f.SetColWidth(sheet, "E", "E", 40)  // รายการสินค้า
-	f.SetColWidth(sheet, "F", "F", 15)  // ราคารวมก่อน VAT
-	f.SetColWidth(sheet, "G", "G", 12)  // VAT
-	f.SetColWidth(sheet, "H", "H", 15)  // ราคารวม
-	f.SetColWidth(sheet, "I", "I", 12)  // ค่าส่ง
-	f.SetColWidth(sheet, "J", "J", 15)  // รวมทั้งหมด
+	f.SetColWidth(sheet, "A", "A", 5)  // ลำดับ
+	f.SetColWidth(sheet, "B", "B", 15) // รหัส
+	f.SetColWidth(sheet, "C", "C", 12) // วันที่
+	f.SetColWidth(sheet, "D", "D", 40) // ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
+	f.SetColWidth(sheet, "E", "E", 40) // รายการสินค้า
+	f.SetColWidth(sheet, "F", "F", 15) // ราคารวมก่อน VAT
+	f.SetColWidth(sheet, "G", "G", 12) // VAT
+	f.SetColWidth(sheet, "H", "H", 15) // ราคารวม
+	f.SetColWidth(sheet, "I", "I", 12) // ค่าส่ง
+	f.SetColWidth(sheet, "J", "J", 15) // รวมทั้งหมด
 
 	// Styles
 	titleStyle, _ := f.NewStyle(&excelize.Style{
@@ -240,16 +241,16 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []models.Sale, monthName string, year int, isVAT bool) {
 	// Set column widths
 	// A: ลำดับ, B: รหัส, C: วันที่, D: ชื่อลูกค้า, E: รายการสินค้า, F: ราคารวมก่อน VAT, G: VAT, H: ราคารวม, I: ค่าส่ง, J: รวมทั้งหมด
-	f.SetColWidth(sheet, "A", "A", 5)   // ลำดับ
-	f.SetColWidth(sheet, "B", "B", 15)  // รหัส
-	f.SetColWidth(sheet, "C", "C", 12)  // วันที่
-	f.SetColWidth(sheet, "D", "D", 40)  // ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
-	f.SetColWidth(sheet, "E", "E", 40)  // รายการสินค้า
-	f.SetColWidth(sheet, "F", "F", 15)  // ราคารวมก่อน VAT
-	f.SetColWidth(sheet, "G", "G", 12)  // VAT
-	f.SetColWidth(sheet, "H", "H", 15)  // ราคารวม
-	f.SetColWidth(sheet, "I", "I", 12)  // ค่าส่ง
-	f.SetColWidth(sheet, "J", "J", 15)  // รวมทั้งหมด
+	f.SetColWidth(sheet, "A", "A", 5)  // ลำดับ
+	f.SetColWidth(sheet, "B", "B", 15) // รหัส
+	f.SetColWidth(sheet, "C", "C", 12) // วันที่
+	f.SetColWidth(sheet, "D", "D", 40) // ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
+	f.SetColWidth(sheet, "E", "E", 40) // รายการสินค้า
+	f.SetColWidth(sheet, "F", "F", 15) // ราคารวมก่อน VAT
+	f.SetColWidth(sheet, "G", "G", 12) // VAT
+	f.SetColWidth(sheet, "H", "H", 15) // ราคารวม
+	f.SetColWidth(sheet, "I", "I", 12) // ค่าส่ง
+	f.SetColWidth(sheet, "J", "J", 15) // รวมทั้งหมด
 
 	// Styles
 	titleStyle, _ := f.NewStyle(&excelize.Style{
@@ -349,10 +350,10 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 		for _, item := range sale.Items {
 			itemsTotal += item.TotalPrice
 		}
-		
+
 		var beforeVAT, vatAmount, afterVAT float64
 		shipping := sale.ShippingCost
-		
+
 		if isVAT {
 			if sale.VatType == "inclusive" {
 				// VAT ใน: ราคาที่กรอกรวม VAT แล้ว

@@ -98,6 +98,13 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	// Export routes
 	api.HandleFunc("/export/email", exportHandler.ExportAndSendEmail).Methods("POST")
 
+	// Import routes
+	importHandler := handlers.NewImportHandler(customerRepo, productRepo)
+	api.HandleFunc("/import/customers", importHandler.ImportCustomers).Methods("POST")
+	api.HandleFunc("/import/customers/template", importHandler.GetCustomerTemplate).Methods("GET")
+	api.HandleFunc("/import/products", importHandler.ImportProducts).Methods("POST")
+	api.HandleFunc("/import/products/template", importHandler.GetProductTemplate).Methods("GET")
+
 	// Static file serving for uploaded images
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads/"))))
 
