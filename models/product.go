@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"goodpack-server/utils"
 )
 
 // PriceInfo represents price information for VAT and Non-VAT
@@ -105,7 +106,7 @@ func (pr *ProductRequest) ToProduct() *Product {
 		Name:        pr.Name,
 		Description: pr.Description,
 		Color:       pr.Color,
-		Size:        pr.Size,
+		Size:        utils.NormalizeSize(pr.Size), // Normalize size (e.g., "50ml." → "50 mL")
 		Category:    pr.Category,
 		ImageURL:    pr.ImageURL,
 		Price:       pr.Price,
@@ -120,7 +121,7 @@ func (p *Product) UpdateFromRequest(pr *ProductRequest) {
 	p.Name = pr.Name
 	p.Description = pr.Description
 	p.Color = pr.Color
-	p.Size = pr.Size
+	p.Size = utils.NormalizeSize(pr.Size) // Normalize size (e.g., "50ml." → "50 mL")
 	p.Category = pr.Category
 	// Update ImageURL (allow null to delete image)
 	p.ImageURL = pr.ImageURL
