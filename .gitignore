@@ -68,3 +68,4 @@ uploads/*
 # Server specific
 server
 *.pid
+.env
