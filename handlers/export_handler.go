@@ -159,4 +159,3 @@ func sendErrorResponse(w http.ResponseWriter, message string) {
 		Message: message,
 	})
 }
-

@@ -15,7 +15,7 @@ func NewExcelService() *ExcelService {
 	return &ExcelService{}
 }
 
-// GeneratePurchaseSaleExcel creates an Excel file with 2 sheets: Purchases and Sales
+// GeneratePurchaseSaleExcel creates an Excel file with 4 sheets: ขาย VAT, ขาย Non-VAT, ซื้อ VAT, ซื้อ Non-VAT
 func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sales []models.Sale, month int, year int) (*bytes.Buffer, error) {
 	f := excelize.NewFile()
 	defer f.Close()
@@ -29,15 +29,38 @@ func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sa
 	monthName := thaiMonths[month-1]
 	buddhistYear := year + 543
 
-	// Create Purchases sheet
-	purchaseSheet := "รายการซื้อ"
-	f.SetSheetName("Sheet1", purchaseSheet)
-	s.createPurchaseSheet(f, purchaseSheet, purchases, monthName, buddhistYear)
+	// Filter data by VAT status
+	var salesVAT, salesNonVAT []models.Sale
+	var purchasesVAT, purchasesNonVAT []models.Purchase
 
-	// Create Sales sheet
-	saleSheet := "รายการขาย"
-	f.NewSheet(saleSheet)
-	s.createSaleSheet(f, saleSheet, sales, monthName, buddhistYear)
+	for _, sale := range sales {
+		if sale.IsVAT {
+			salesVAT = append(salesVAT, sale)
+		} else {
+			salesNonVAT = append(salesNonVAT, sale)
+		}
+	}
+
+	for _, purchase := range purchases {
+		if purchase.IsVAT {
+			purchasesVAT = append(purchasesVAT, purchase)
+		} else {
+			purchasesNonVAT = append(purchasesNonVAT, purchase)
+		}
+	}
+
+	// Create sheets (Sheet1 will be renamed to first sheet)
+	f.SetSheetName("Sheet1", "ขาย VAT")
+	s.createSaleSheet(f, "ขาย VAT", salesVAT, monthName, buddhistYear, true)
+
+	f.NewSheet("ขาย Non-VAT")
+	s.createSaleSheet(f, "ขาย Non-VAT", salesNonVAT, monthName, buddhistYear, false)
+
+	f.NewSheet("ซื้อ VAT")
+	s.createPurchaseSheet(f, "ซื้อ VAT", purchasesVAT, monthName, buddhistYear, true)
+
+	f.NewSheet("ซื้อ Non-VAT")
+	s.createPurchaseSheet(f, "ซื้อ Non-VAT", purchasesNonVAT, monthName, buddhistYear, false)
 
 	// Save to buffer
 	buf, err := f.WriteToBuffer()
@@ -48,30 +71,38 @@ func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sa
 	return buf, nil
 }
 
-func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purchases []models.Purchase, monthName string, year int) {
+// getCustomerDisplayName returns "ชื่อบริษัท (เลขผู้เสียภาษี)" or just "ชื่อบริษัท" if no tax ID
+func getCustomerDisplayName(customerName string, taxID *string) string {
+	if taxID != nil && *taxID != "" {
+		return fmt.Sprintf("%s (%s)", customerName, *taxID)
+	}
+	return customerName
+}
+
+func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purchases []models.Purchase, monthName string, year int, isVAT bool) {
 	// Set column widths
+	// A: ลำดับ, B: รหัส, C: วันที่, D: ชื่อลูกค้า, E: รายการสินค้า, F: ราคารวมก่อน VAT, G: VAT, H: ราคารวม, I: ค่าส่ง, J: รวมทั้งหมด
 	f.SetColWidth(sheet, "A", "A", 5)   // ลำดับ
 	f.SetColWidth(sheet, "B", "B", 15)  // รหัส
 	f.SetColWidth(sheet, "C", "C", 12)  // วันที่
-	f.SetColWidth(sheet, "D", "D", 30)  // ชื่อลูกค้า
-	f.SetColWidth(sheet, "E", "E", 10)  // VAT
-	f.SetColWidth(sheet, "F", "F", 40)  // รายการสินค้า
-	f.SetColWidth(sheet, "G", "G", 15)  // ยอดรวม
-	f.SetColWidth(sheet, "H", "H", 15)  // VAT
-	f.SetColWidth(sheet, "I", "I", 15)  // รวมทั้งหมด
-	f.SetColWidth(sheet, "J", "J", 12)  // สถานะชำระ
-	f.SetColWidth(sheet, "K", "K", 12)  // สถานะคลัง
+	f.SetColWidth(sheet, "D", "D", 40)  // ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
+	f.SetColWidth(sheet, "E", "E", 40)  // รายการสินค้า
+	f.SetColWidth(sheet, "F", "F", 15)  // ราคารวมก่อน VAT
+	f.SetColWidth(sheet, "G", "G", 12)  // VAT
+	f.SetColWidth(sheet, "H", "H", 15)  // ราคารวม
+	f.SetColWidth(sheet, "I", "I", 12)  // ค่าส่ง
+	f.SetColWidth(sheet, "J", "J", 15)  // รวมทั้งหมด
 
-	// Title style
+	// Styles
 	titleStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true, Size: 14},
 		Alignment: &excelize.Alignment{Horizontal: "center"},
 	})
 
-	// Header style
+	headerColor := "4472C4" // Blue for purchases
 	headerStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true, Size: 10, Color: "FFFFFF"},
-		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"4472C4"}},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{headerColor}},
 		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
 		Border: []excelize.Border{
 			{Type: "left", Color: "000000", Style: 1},
@@ -81,7 +112,6 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 		},
 	})
 
-	// Data style
 	dataStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Size: 10},
 		Alignment: &excelize.Alignment{Vertical: "center", WrapText: true},
@@ -93,11 +123,10 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 		},
 	})
 
-	// Number style
 	numberStyle, _ := f.NewStyle(&excelize.Style{
-		Font:         &excelize.Font{Size: 10},
-		Alignment:    &excelize.Alignment{Horizontal: "right", Vertical: "center"},
-		NumFmt:       4, // #,##0.00
+		Font:      &excelize.Font{Size: 10},
+		Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+		NumFmt:    4, // #,##0.00
 		Border: []excelize.Border{
 			{Type: "left", Color: "000000", Style: 1},
 			{Type: "top", Color: "000000", Style: 1},
@@ -107,19 +136,25 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 	})
 
 	// Title
-	f.MergeCell(sheet, "A1", "K1")
-	f.SetCellValue(sheet, "A1", fmt.Sprintf("รายการซื้อ - %s %d", monthName, year))
-	f.SetCellStyle(sheet, "A1", "K1", titleStyle)
+	vatLabel := "VAT"
+	if !isVAT {
+		vatLabel = "Non-VAT"
+	}
+	f.MergeCell(sheet, "A1", "J1")
+	f.SetCellValue(sheet, "A1", fmt.Sprintf("รายการซื้อ (%s) - %s %d", vatLabel, monthName, year))
+	f.SetCellStyle(sheet, "A1", "J1", titleStyle)
 
 	// Headers
-	headers := []string{"ลำดับ", "รหัส", "วันที่", "ชื่อลูกค้า", "VAT", "รายการสินค้า", "ยอดรวม", "VAT", "รวมทั้งหมด", "สถานะชำระ", "สถานะคลัง"}
+	headers := []string{"ลำดับ", "รหัส", "วันที่", "ชื่อลูกค้า", "รายการสินค้า", "ราคารวมก่อน VAT", "VAT", "ราคารวม", "ค่าส่ง", "รวมทั้งหมด"}
 	for i, h := range headers {
 		cell := fmt.Sprintf("%c3", 'A'+i)
 		f.SetCellValue(sheet, cell, h)
 	}
-	f.SetCellStyle(sheet, "A3", "K3", headerStyle)
+	f.SetCellStyle(sheet, "A3", "J3", headerStyle)
 
 	// Data rows
+	var sumBeforeVAT, sumVAT, sumAfterVAT, sumShipping, sumTotal float64
+
 	for i, p := range purchases {
 		row := i + 4
 
@@ -135,17 +170,10 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), p.PurchaseDate.Format("02/01/2006"))
 		f.SetCellStyle(sheet, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), dataStyle)
 
-		// ชื่อลูกค้า
-		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), p.CustomerName)
+		// ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
+		customerDisplay := getCustomerDisplayName(p.CustomerName, p.TaxID)
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), customerDisplay)
 		f.SetCellStyle(sheet, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), dataStyle)
-
-		// VAT
-		vatStatus := "Non-VAT"
-		if p.IsVAT {
-			vatStatus = "VAT"
-		}
-		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), vatStatus)
-		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), dataStyle)
 
 		// รายการสินค้า
 		var items string
@@ -155,78 +183,84 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 			}
 			items += fmt.Sprintf("%s (x%d)", item.ProductName, item.Quantity)
 		}
-		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), items)
-		f.SetCellStyle(sheet, fmt.Sprintf("F%d", row), fmt.Sprintf("F%d", row), dataStyle)
+		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), items)
+		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), dataStyle)
 
-		// ยอดรวม
-		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), p.TotalAmount)
-		f.SetCellStyle(sheet, fmt.Sprintf("G%d", row), fmt.Sprintf("G%d", row), numberStyle)
+		// Calculate values
+		beforeVAT := p.TotalAmount
+		vatAmount := p.TotalVAT
+		if !isVAT {
+			vatAmount = 0
+		}
+		afterVAT := beforeVAT + vatAmount
+		shipping := p.ShippingCost
+		total := afterVAT + shipping
+
+		// ราคารวมก่อน VAT
+		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), beforeVAT)
+		f.SetCellStyle(sheet, fmt.Sprintf("F%d", row), fmt.Sprintf("F%d", row), numberStyle)
 
 		// VAT
-		f.SetCellValue(sheet, fmt.Sprintf("H%d", row), p.TotalVAT)
+		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), vatAmount)
+		f.SetCellStyle(sheet, fmt.Sprintf("G%d", row), fmt.Sprintf("G%d", row), numberStyle)
+
+		// ราคารวม
+		f.SetCellValue(sheet, fmt.Sprintf("H%d", row), afterVAT)
 		f.SetCellStyle(sheet, fmt.Sprintf("H%d", row), fmt.Sprintf("H%d", row), numberStyle)
 
-		// รวมทั้งหมด
-		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), p.GrandTotal)
+		// ค่าส่ง
+		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), shipping)
 		f.SetCellStyle(sheet, fmt.Sprintf("I%d", row), fmt.Sprintf("I%d", row), numberStyle)
 
-		// สถานะชำระ
-		paymentStatus := "ยังไม่ชำระ"
-		if p.Payment.IsPaid {
-			paymentStatus = "ชำระแล้ว"
-		}
-		f.SetCellValue(sheet, fmt.Sprintf("J%d", row), paymentStatus)
-		f.SetCellStyle(sheet, fmt.Sprintf("J%d", row), fmt.Sprintf("J%d", row), dataStyle)
+		// รวมทั้งหมด
+		f.SetCellValue(sheet, fmt.Sprintf("J%d", row), total)
+		f.SetCellStyle(sheet, fmt.Sprintf("J%d", row), fmt.Sprintf("J%d", row), numberStyle)
 
-		// สถานะคลัง
-		warehouseStatus := "ยังไม่อัพเดต"
-		if p.Warehouse.IsUpdated {
-			warehouseStatus = "อัพเดตแล้ว"
-		}
-		f.SetCellValue(sheet, fmt.Sprintf("K%d", row), warehouseStatus)
-		f.SetCellStyle(sheet, fmt.Sprintf("K%d", row), fmt.Sprintf("K%d", row), dataStyle)
+		// Accumulate totals
+		sumBeforeVAT += beforeVAT
+		sumVAT += vatAmount
+		sumAfterVAT += afterVAT
+		sumShipping += shipping
+		sumTotal += total
 	}
 
 	// Summary row
 	summaryRow := len(purchases) + 5
-	f.SetCellValue(sheet, fmt.Sprintf("F%d", summaryRow), "รวมทั้งหมด:")
-	f.SetCellStyle(sheet, fmt.Sprintf("F%d", summaryRow), fmt.Sprintf("F%d", summaryRow), headerStyle)
+	f.SetCellValue(sheet, fmt.Sprintf("E%d", summaryRow), "รวมทั้งหมด:")
+	f.SetCellStyle(sheet, fmt.Sprintf("E%d", summaryRow), fmt.Sprintf("E%d", summaryRow), headerStyle)
 
-	var totalAmount, totalVAT, grandTotal float64
-	for _, p := range purchases {
-		totalAmount += p.TotalAmount
-		totalVAT += p.TotalVAT
-		grandTotal += p.GrandTotal
-	}
-	f.SetCellValue(sheet, fmt.Sprintf("G%d", summaryRow), totalAmount)
-	f.SetCellValue(sheet, fmt.Sprintf("H%d", summaryRow), totalVAT)
-	f.SetCellValue(sheet, fmt.Sprintf("I%d", summaryRow), grandTotal)
-	f.SetCellStyle(sheet, fmt.Sprintf("G%d", summaryRow), fmt.Sprintf("I%d", summaryRow), numberStyle)
+	f.SetCellValue(sheet, fmt.Sprintf("F%d", summaryRow), sumBeforeVAT)
+	f.SetCellValue(sheet, fmt.Sprintf("G%d", summaryRow), sumVAT)
+	f.SetCellValue(sheet, fmt.Sprintf("H%d", summaryRow), sumAfterVAT)
+	f.SetCellValue(sheet, fmt.Sprintf("I%d", summaryRow), sumShipping)
+	f.SetCellValue(sheet, fmt.Sprintf("J%d", summaryRow), sumTotal)
+	f.SetCellStyle(sheet, fmt.Sprintf("F%d", summaryRow), fmt.Sprintf("J%d", summaryRow), numberStyle)
 }
 
-func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []models.Sale, monthName string, year int) {
+func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []models.Sale, monthName string, year int, isVAT bool) {
 	// Set column widths
+	// A: ลำดับ, B: รหัส, C: วันที่, D: ชื่อลูกค้า, E: รายการสินค้า, F: ราคารวมก่อน VAT, G: VAT, H: ราคารวม, I: ค่าส่ง, J: รวมทั้งหมด
 	f.SetColWidth(sheet, "A", "A", 5)   // ลำดับ
 	f.SetColWidth(sheet, "B", "B", 15)  // รหัส
 	f.SetColWidth(sheet, "C", "C", 12)  // วันที่
-	f.SetColWidth(sheet, "D", "D", 30)  // ชื่อลูกค้า
-	f.SetColWidth(sheet, "E", "E", 10)  // VAT
-	f.SetColWidth(sheet, "F", "F", 40)  // รายการสินค้า
-	f.SetColWidth(sheet, "G", "G", 15)  // ยอดรวม
-	f.SetColWidth(sheet, "H", "H", 15)  // ค่าส่ง
-	f.SetColWidth(sheet, "I", "I", 12)  // สถานะชำระ
-	f.SetColWidth(sheet, "J", "J", 12)  // สถานะคลัง
+	f.SetColWidth(sheet, "D", "D", 40)  // ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
+	f.SetColWidth(sheet, "E", "E", 40)  // รายการสินค้า
+	f.SetColWidth(sheet, "F", "F", 15)  // ราคารวมก่อน VAT
+	f.SetColWidth(sheet, "G", "G", 12)  // VAT
+	f.SetColWidth(sheet, "H", "H", 15)  // ราคารวม
+	f.SetColWidth(sheet, "I", "I", 12)  // ค่าส่ง
+	f.SetColWidth(sheet, "J", "J", 15)  // รวมทั้งหมด
 
-	// Title style
+	// Styles
 	titleStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true, Size: 14},
 		Alignment: &excelize.Alignment{Horizontal: "center"},
 	})
 
-	// Header style
+	headerColor := "70AD47" // Green for sales
 	headerStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true, Size: 10, Color: "FFFFFF"},
-		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"70AD47"}},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{headerColor}},
 		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
 		Border: []excelize.Border{
 			{Type: "left", Color: "000000", Style: 1},
@@ -236,7 +270,6 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 		},
 	})
 
-	// Data style
 	dataStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Size: 10},
 		Alignment: &excelize.Alignment{Vertical: "center", WrapText: true},
@@ -248,11 +281,10 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 		},
 	})
 
-	// Number style
 	numberStyle, _ := f.NewStyle(&excelize.Style{
-		Font:         &excelize.Font{Size: 10},
-		Alignment:    &excelize.Alignment{Horizontal: "right", Vertical: "center"},
-		NumFmt:       4, // #,##0.00
+		Font:      &excelize.Font{Size: 10},
+		Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+		NumFmt:    4, // #,##0.00
 		Border: []excelize.Border{
 			{Type: "left", Color: "000000", Style: 1},
 			{Type: "top", Color: "000000", Style: 1},
@@ -262,12 +294,16 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 	})
 
 	// Title
+	vatLabel := "VAT"
+	if !isVAT {
+		vatLabel = "Non-VAT"
+	}
 	f.MergeCell(sheet, "A1", "J1")
-	f.SetCellValue(sheet, "A1", fmt.Sprintf("รายการขาย - %s %d", monthName, year))
+	f.SetCellValue(sheet, "A1", fmt.Sprintf("รายการขาย (%s) - %s %d", vatLabel, monthName, year))
 	f.SetCellStyle(sheet, "A1", "J1", titleStyle)
 
 	// Headers
-	headers := []string{"ลำดับ", "รหัส", "วันที่", "ชื่อลูกค้า", "VAT", "รายการสินค้า", "ยอดรวม", "ค่าส่ง", "สถานะชำระ", "สถานะคลัง"}
+	headers := []string{"ลำดับ", "รหัส", "วันที่", "ชื่อลูกค้า", "รายการสินค้า", "ราคารวมก่อน VAT", "VAT", "ราคารวม", "ค่าส่ง", "รวมทั้งหมด"}
 	for i, h := range headers {
 		cell := fmt.Sprintf("%c3", 'A'+i)
 		f.SetCellValue(sheet, cell, h)
@@ -275,6 +311,8 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 	f.SetCellStyle(sheet, "A3", "J3", headerStyle)
 
 	// Data rows
+	var sumBeforeVAT, sumVAT, sumAfterVAT, sumShipping, sumTotal float64
+
 	for i, sale := range sales {
 		row := i + 4
 
@@ -290,17 +328,10 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), sale.SaleDate.Format("02/01/2006"))
 		f.SetCellStyle(sheet, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), dataStyle)
 
-		// ชื่อลูกค้า
-		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), sale.CustomerName)
+		// ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
+		customerDisplay := getCustomerDisplayName(sale.CustomerName, sale.TaxID)
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), customerDisplay)
 		f.SetCellStyle(sheet, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), dataStyle)
-
-		// VAT
-		vatStatus := "Non-VAT"
-		if sale.IsVAT {
-			vatStatus = "VAT"
-		}
-		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), vatStatus)
-		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), dataStyle)
 
 		// รายการสินค้า
 		var items string
@@ -310,53 +341,61 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 			}
 			items += fmt.Sprintf("%s (x%d)", item.ProductName, item.Quantity)
 		}
-		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), items)
-		f.SetCellStyle(sheet, fmt.Sprintf("F%d", row), fmt.Sprintf("F%d", row), dataStyle)
+		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), items)
+		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), dataStyle)
 
-		// คำนวณยอดรวม
-		var totalAmount float64
+		// Calculate values
+		var beforeVAT float64
 		for _, item := range sale.Items {
-			totalAmount += item.TotalPrice
+			beforeVAT += item.TotalPrice
 		}
-		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), totalAmount)
+		vatAmount := 0.0
+		if isVAT {
+			vatAmount = beforeVAT * 0.07
+		}
+		afterVAT := beforeVAT + vatAmount
+		shipping := sale.ShippingCost
+		total := afterVAT + shipping
+
+		// ราคารวมก่อน VAT
+		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), beforeVAT)
+		f.SetCellStyle(sheet, fmt.Sprintf("F%d", row), fmt.Sprintf("F%d", row), numberStyle)
+
+		// VAT
+		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), vatAmount)
 		f.SetCellStyle(sheet, fmt.Sprintf("G%d", row), fmt.Sprintf("G%d", row), numberStyle)
 
-		// ค่าส่ง
-		f.SetCellValue(sheet, fmt.Sprintf("H%d", row), sale.ShippingCost)
+		// ราคารวม
+		f.SetCellValue(sheet, fmt.Sprintf("H%d", row), afterVAT)
 		f.SetCellStyle(sheet, fmt.Sprintf("H%d", row), fmt.Sprintf("H%d", row), numberStyle)
 
-		// สถานะชำระ
-		paymentStatus := "ยังไม่ชำระ"
-		if sale.Payment.IsPaid {
-			paymentStatus = "ชำระแล้ว"
-		}
-		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), paymentStatus)
-		f.SetCellStyle(sheet, fmt.Sprintf("I%d", row), fmt.Sprintf("I%d", row), dataStyle)
+		// ค่าส่ง
+		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), shipping)
+		f.SetCellStyle(sheet, fmt.Sprintf("I%d", row), fmt.Sprintf("I%d", row), numberStyle)
 
-		// สถานะคลัง
-		warehouseStatus := "ยังไม่อัพเดต"
-		if sale.Warehouse.IsUpdated {
-			warehouseStatus = "อัพเดตแล้ว"
-		}
-		f.SetCellValue(sheet, fmt.Sprintf("J%d", row), warehouseStatus)
-		f.SetCellStyle(sheet, fmt.Sprintf("J%d", row), fmt.Sprintf("J%d", row), dataStyle)
+		// รวมทั้งหมด
+		f.SetCellValue(sheet, fmt.Sprintf("J%d", row), total)
+		f.SetCellStyle(sheet, fmt.Sprintf("J%d", row), fmt.Sprintf("J%d", row), numberStyle)
+
+		// Accumulate totals
+		sumBeforeVAT += beforeVAT
+		sumVAT += vatAmount
+		sumAfterVAT += afterVAT
+		sumShipping += shipping
+		sumTotal += total
 	}
 
 	// Summary row
 	summaryRow := len(sales) + 5
-	f.SetCellValue(sheet, fmt.Sprintf("F%d", summaryRow), "รวมทั้งหมด:")
-	f.SetCellStyle(sheet, fmt.Sprintf("F%d", summaryRow), fmt.Sprintf("F%d", summaryRow), headerStyle)
+	f.SetCellValue(sheet, fmt.Sprintf("E%d", summaryRow), "รวมทั้งหมด:")
+	f.SetCellStyle(sheet, fmt.Sprintf("E%d", summaryRow), fmt.Sprintf("E%d", summaryRow), headerStyle)
 
-	var totalAmount, totalShipping float64
-	for _, sale := range sales {
-		for _, item := range sale.Items {
-			totalAmount += item.TotalPrice
-		}
-		totalShipping += sale.ShippingCost
-	}
-	f.SetCellValue(sheet, fmt.Sprintf("G%d", summaryRow), totalAmount)
-	f.SetCellValue(sheet, fmt.Sprintf("H%d", summaryRow), totalShipping)
-	f.SetCellStyle(sheet, fmt.Sprintf("G%d", summaryRow), fmt.Sprintf("H%d", summaryRow), numberStyle)
+	f.SetCellValue(sheet, fmt.Sprintf("F%d", summaryRow), sumBeforeVAT)
+	f.SetCellValue(sheet, fmt.Sprintf("G%d", summaryRow), sumVAT)
+	f.SetCellValue(sheet, fmt.Sprintf("H%d", summaryRow), sumAfterVAT)
+	f.SetCellValue(sheet, fmt.Sprintf("I%d", summaryRow), sumShipping)
+	f.SetCellValue(sheet, fmt.Sprintf("J%d", summaryRow), sumTotal)
+	f.SetCellStyle(sheet, fmt.Sprintf("F%d", summaryRow), fmt.Sprintf("J%d", summaryRow), numberStyle)
 }
 
 // GetThaiMonthName returns Thai month name for a given month number (1-12)
@@ -376,4 +415,3 @@ func GetThaiMonthName(month int) string {
 func FormatThaiDate(t time.Time) string {
 	return t.Format("02/01/2006")
 }
-
