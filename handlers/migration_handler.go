@@ -338,8 +338,22 @@ func (h *MigrationHandler) parseAndMigrateProductCSV(file io.Reader) (*Migration
 	// Get header row
 	headers := records[0]
 	headerMap := make(map[string]int)
+
+	// Debug: Log raw headers before normalization
+	headerCount := len(headers)
+	if headerCount > 10 {
+		headerCount = 10
+	}
+	fmt.Printf("DEBUG: Raw headers from CSV (first %d): %v\n", headerCount, headers[:headerCount])
+
 	for i, header := range headers {
-		headerMap[strings.ToLower(strings.TrimSpace(header))] = i
+		normalized := strings.ToLower(strings.TrimSpace(header))
+		headerMap[normalized] = i
+		// Debug: Log first few headers with their normalization
+		if i < 5 {
+			fmt.Printf("DEBUG: Header[%d]: raw='%s' (len=%d) -> normalized='%s'\n",
+				i, header, len(header), normalized)
+		}
 	}
 
 	// Validate required headers
