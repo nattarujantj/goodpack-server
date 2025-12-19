@@ -81,6 +81,7 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/quotations/{id}", quotationHandler.UpdateQuotation).Methods("PUT")
 	api.HandleFunc("/quotations/{id}", quotationHandler.DeleteQuotation).Methods("DELETE")
 	api.HandleFunc("/quotations/{id}/copy-to-sale", quotationHandler.CopyToSale).Methods("GET")
+	api.HandleFunc("/quotations/{id}/status", quotationHandler.UpdateQuotationStatus).Methods("PATCH")
 
 	// Migration routes
 	api.HandleFunc("/migration/customers/csv", migrationHandler.MigrateCustomersFromCSV).Methods("POST")

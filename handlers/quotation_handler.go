@@ -239,3 +239,54 @@ func (h *QuotationHandler) CopyToSale(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(saleRequest)
 }
+
+// UpdateQuotationStatus updates only the status field of a quotation
+func (h *QuotationHandler) UpdateQuotationStatus(w http.ResponseWriter, r *http.Request) {
+	// Extract ID from URL path: /api/quotations/{id}/status
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid quotation ID", http.StatusBadRequest)
+		return
+	}
+	id := pathParts[len(pathParts)-2] // id is before "status"
+
+	var statusReq struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&statusReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate status
+	validStatuses := map[string]bool{
+		"draft":    true,
+		"sent":     true,
+		"accepted": true,
+		"rejected": true,
+		"expired":  true,
+	}
+	if !validStatuses[statusReq.Status] {
+		http.Error(w, "Invalid status value", http.StatusBadRequest)
+		return
+	}
+
+	// Get existing quotation
+	quotation, err := h.quotationRepo.GetByID(id)
+	if err != nil {
+		http.Error(w, "Quotation not found", http.StatusNotFound)
+		return
+	}
+
+	// Update status
+	quotation.Status = statusReq.Status
+
+	// Save updated quotation
+	if err := h.quotationRepo.Update(id, quotation); err != nil {
+		http.Error(w, "Failed to update quotation status", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(quotation)
+}
