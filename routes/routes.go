@@ -23,7 +23,7 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
 	migrationHandler := handlers.NewMigrationHandler(customerRepo, productRepo, purchaseRepo, saleRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
-	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo)
+	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo)
 
 	// API routes
 	api := router.PathPrefix("/api").Subrouter()

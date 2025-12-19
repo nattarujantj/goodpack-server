@@ -15,16 +15,48 @@ import (
 type ExportHandler struct {
 	purchaseRepo *repository.PurchaseRepository
 	saleRepo     *repository.SaleRepository
+	customerRepo *repository.CustomerRepository
 	excelService *services.ExcelService
 	emailService *services.EmailService
 }
 
-func NewExportHandler(purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository) *ExportHandler {
+func NewExportHandler(purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository) *ExportHandler {
 	return &ExportHandler{
 		purchaseRepo: purchaseRepo,
 		saleRepo:     saleRepo,
+		customerRepo: customerRepo,
 		excelService: services.NewExcelService(),
 		emailService: services.NewEmailService(),
+	}
+}
+
+// enrichSaleWithCustomerData enriches a sale with customer data
+func (h *ExportHandler) enrichSaleWithCustomerData(sale *models.Sale) {
+	if sale.CustomerID == "" {
+		return
+	}
+	customer, err := h.customerRepo.GetByID(sale.CustomerID)
+	if err == nil && customer != nil {
+		sale.CustomerName = customer.CompanyName
+		if sale.CustomerName == "" {
+			sale.CustomerName = customer.ContactName
+		}
+		sale.TaxID = &customer.TaxID
+	}
+}
+
+// enrichPurchaseWithCustomerData enriches a purchase with customer data
+func (h *ExportHandler) enrichPurchaseWithCustomerData(purchase *models.Purchase) {
+	if purchase.CustomerID == "" {
+		return
+	}
+	customer, err := h.customerRepo.GetByID(purchase.CustomerID)
+	if err == nil && customer != nil {
+		purchase.CustomerName = customer.CompanyName
+		if purchase.CustomerName == "" {
+			purchase.CustomerName = customer.ContactName
+		}
+		purchase.TaxID = &customer.TaxID
 	}
 }
 
@@ -84,10 +116,11 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Filter purchases by date
+	// Filter purchases by date and enrich with customer data
 	var purchases []models.Purchase
 	for _, p := range allPurchases {
 		if p.PurchaseDate.After(startDate.Add(-time.Second)) && p.PurchaseDate.Before(endDate.Add(time.Second)) {
+			h.enrichPurchaseWithCustomerData(p)
 			purchases = append(purchases, *p)
 		}
 	}
@@ -100,10 +133,11 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Filter sales by date
+	// Filter sales by date and enrich with customer data
 	var sales []models.Sale
 	for _, s := range allSales {
 		if s.SaleDate.After(startDate.Add(-time.Second)) && s.SaleDate.Before(endDate.Add(time.Second)) {
+			h.enrichSaleWithCustomerData(&s)
 			sales = append(sales, s)
 		}
 	}
