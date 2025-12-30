@@ -129,6 +129,7 @@ func (q *Quotation) UpdateFromRequest(qr *QuotationRequest) {
 	q.CustomerID = qr.CustomerID
 	q.Items = qr.Items
 	q.IsVAT = qr.IsVAT
+	q.VATType = qr.VATType
 	q.ShippingCost = qr.ShippingCost
 	q.Notes = qr.Notes
 	if qr.ValidUntil != nil {
@@ -174,12 +175,25 @@ func (q *Quotation) CalculateGrandTotal() float64 {
 		totalBeforeVAT += item.TotalPrice
 	}
 
-	totalVAT := 0.0
+	var totalVAT float64
+	var grandTotal float64
 	if q.IsVAT {
-		totalVAT = totalBeforeVAT * 0.07
+		if q.VATType == "inclusive" {
+			// VAT ใน: ราคารวม VAT แล้ว ต้องถอด VAT ออก
+			// ราคาก่อน VAT = ราคารวม / 1.07
+			// VAT = ราคารวม - ราคาก่อน VAT
+			totalVAT = totalBeforeVAT - (totalBeforeVAT / 1.07)
+			grandTotal = totalBeforeVAT + q.ShippingCost // ราคาที่กรอกคือราคารวม VAT แล้ว
+		} else {
+			// VAT นอก (exclusive): ราคา + VAT 7%
+			totalVAT = totalBeforeVAT * 0.07
+			grandTotal = totalBeforeVAT + totalVAT + q.ShippingCost
+		}
+	} else {
+		grandTotal = totalBeforeVAT + q.ShippingCost
 	}
 
-	return totalBeforeVAT + totalVAT + q.ShippingCost
+	return grandTotal
 }
 
 // ToSaleRequest converts Quotation to SaleRequest for copying to sale
