@@ -186,7 +186,7 @@ func (q *Quotation) CalculateGrandTotal() float64 {
 			grandTotal = totalBeforeVAT + q.ShippingCost // ราคาที่กรอกคือราคารวม VAT แล้ว
 		} else {
 			// VAT นอก (exclusive): ราคา + VAT 7%
-			totalVAT = totalBeforeVAT * 0.07
+		totalVAT = totalBeforeVAT * 0.07
 			grandTotal = totalBeforeVAT + totalVAT + q.ShippingCost
 		}
 	} else {
