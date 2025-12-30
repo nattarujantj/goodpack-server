@@ -98,11 +98,22 @@ func (pr *PurchaseRequest) ToPurchase() *Purchase {
 	}
 
 	var totalVAT float64
+	var grandTotal float64
 	if pr.IsVAT {
-		totalVAT = totalAmount * 0.07 // 7% VAT
+		if pr.VATType == "inclusive" {
+			// VAT ใน: ราคารวม VAT แล้ว ต้องถอด VAT ออก
+			// ราคาก่อน VAT = ราคารวม / 1.07
+			// VAT = ราคารวม - ราคาก่อน VAT
+			totalVAT = totalAmount - (totalAmount / 1.07)
+			grandTotal = totalAmount // ราคาที่กรอกคือราคารวม VAT แล้ว
+		} else {
+			// VAT นอก (exclusive): ราคา + VAT 7%
+			totalVAT = totalAmount * 0.07
+			grandTotal = totalAmount + totalVAT
+		}
+	} else {
+		grandTotal = totalAmount
 	}
-
-	grandTotal := totalAmount + totalVAT
 
 	return &Purchase{
 		PurchaseCode:  "", // Will be populated by handler
@@ -138,11 +149,20 @@ func (p *Purchase) UpdateFromRequest(pr *PurchaseRequest) {
 	}
 
 	var totalVAT float64
+	var grandTotal float64
 	if pr.IsVAT {
-		totalVAT = totalAmount * 0.07 // 7% VAT
+		if pr.VATType == "inclusive" {
+			// VAT ใน: ราคารวม VAT แล้ว ต้องถอด VAT ออก
+			totalVAT = totalAmount - (totalAmount / 1.07)
+			grandTotal = totalAmount
+		} else {
+			// VAT นอก (exclusive): ราคา + VAT 7%
+			totalVAT = totalAmount * 0.07
+			grandTotal = totalAmount + totalVAT
+		}
+	} else {
+		grandTotal = totalAmount
 	}
-
-	grandTotal := totalAmount + totalVAT
 
 	p.PurchaseDate = pr.PurchaseDate
 	p.SupplierID = pr.SupplierID
