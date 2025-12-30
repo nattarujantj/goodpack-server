@@ -12,13 +12,14 @@ import (
 	"goodpack-server/repository"
 )
 
-func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) http.Handler {
+func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) http.Handler {
 	router := mux.NewRouter()
 
 	// Initialize handlers test2
 	productHandler := handlers.NewProductHandler(productRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo)
-	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, customerRepo, productRepo, stockAdjustmentRepo)
+	supplierHandler := handlers.NewSupplierHandler(supplierRepo)
+	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, supplierRepo, productRepo, stockAdjustmentRepo)
 	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo, stockAdjustmentRepo)
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
 	migrationHandler := handlers.NewMigrationHandler(customerRepo, productRepo, purchaseRepo, saleRepo)
@@ -60,6 +61,13 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/customers/{id}", customerHandler.GetCustomer).Methods("GET")
 	api.HandleFunc("/customers/{id}", customerHandler.UpdateCustomer).Methods("PUT")
 	api.HandleFunc("/customers/{id}", customerHandler.DeleteCustomer).Methods("DELETE")
+
+	// Supplier routes
+	api.HandleFunc("/suppliers", supplierHandler.GetSuppliers).Methods("GET")
+	api.HandleFunc("/suppliers", supplierHandler.CreateSupplier).Methods("POST")
+	api.HandleFunc("/suppliers/{id}", supplierHandler.GetSupplier).Methods("GET")
+	api.HandleFunc("/suppliers/{id}", supplierHandler.UpdateSupplier).Methods("PUT")
+	api.HandleFunc("/suppliers/{id}", supplierHandler.DeleteSupplier).Methods("DELETE")
 
 	// Purchase routes
 	api.HandleFunc("/purchases", purchaseHandler.GetPurchases).Methods("GET")

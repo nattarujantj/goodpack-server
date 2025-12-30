@@ -12,10 +12,10 @@ type Purchase struct {
 	CreatedAt    time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt    time.Time          `bson:"updatedAt" json:"updatedAt"`
 	PurchaseDate time.Time          `bson:"purchaseDate" json:"purchaseDate"`
-	CustomerID   string             `bson:"customerId" json:"customerId"`
-	CustomerName string             `bson:"customerName" json:"customerName"`
+	SupplierID   string             `bson:"supplierId" json:"supplierId"`
+	SupplierName string             `bson:"supplierName" json:"supplierName"`
 	ContactName  *string            `bson:"contactName,omitempty" json:"contactName,omitempty"`
-	CustomerCode *string            `bson:"customerCode,omitempty" json:"customerCode,omitempty"`
+	SupplierCode *string            `bson:"supplierCode,omitempty" json:"supplierCode,omitempty"`
 	TaxID        *string            `bson:"taxId,omitempty" json:"taxId,omitempty"`
 	Address      *string            `bson:"address,omitempty" json:"address,omitempty"`
 	Phone        *string            `bson:"phone,omitempty" json:"phone,omitempty"`
@@ -74,7 +74,7 @@ type WarehouseItem struct {
 
 type PurchaseRequest struct {
 	PurchaseDate time.Time      `json:"purchaseDate" bson:"purchaseDate"`
-	CustomerID   string         `json:"customerId" bson:"customerId"`
+	SupplierID   string         `json:"supplierId" bson:"supplierId"`
 	Notes        *string        `json:"notes,omitempty" bson:"notes,omitempty"`
 	Items        []PurchaseItem `json:"items" bson:"items"`
 	IsVAT        bool           `json:"isVAT" bson:"isVAT"`
@@ -104,13 +104,13 @@ func (pr *PurchaseRequest) ToPurchase() *Purchase {
 		CreatedAt:    now,
 		UpdatedAt:    now,
 		PurchaseDate: pr.PurchaseDate,
-		CustomerID:   pr.CustomerID,
-		CustomerName: "",  // Will be populated from customer data
-		ContactName:  nil, // Will be populated from customer data
-		CustomerCode: nil, // Will be populated from customer data
-		TaxID:        nil, // Will be populated from customer data
-		Address:      nil, // Will be populated from customer data
-		Phone:        nil, // Will be populated from customer data
+		SupplierID:   pr.SupplierID,
+		SupplierName: "",  // Will be populated from supplier data
+		ContactName:  nil, // Will be populated from supplier data
+		SupplierCode: nil, // Will be populated from supplier data
+		TaxID:        nil, // Will be populated from supplier data
+		Address:      nil, // Will be populated from supplier data
+		Phone:        nil, // Will be populated from supplier data
 		Notes:        pr.Notes,
 		Items:        pr.Items,
 		IsVAT:        pr.IsVAT,
@@ -138,7 +138,7 @@ func (p *Purchase) UpdateFromRequest(pr *PurchaseRequest) {
 	grandTotal := totalAmount + totalVAT
 
 	p.PurchaseDate = pr.PurchaseDate
-	p.CustomerID = pr.CustomerID
+	p.SupplierID = pr.SupplierID
 	p.Notes = pr.Notes
 	p.Items = pr.Items
 	p.IsVAT = pr.IsVAT

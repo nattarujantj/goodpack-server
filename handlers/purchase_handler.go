@@ -16,34 +16,34 @@ import (
 
 type PurchaseHandler struct {
 	purchaseRepo        *repository.PurchaseRepository
-	customerRepo        *repository.CustomerRepository
+	supplierRepo        *repository.SupplierRepository
 	productRepo         *repository.ProductRepository
 	stockAdjustmentRepo *repository.StockAdjustmentRepository
 }
 
-func NewPurchaseHandler(purchaseRepo *repository.PurchaseRepository, customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) *PurchaseHandler {
+func NewPurchaseHandler(purchaseRepo *repository.PurchaseRepository, supplierRepo *repository.SupplierRepository, productRepo *repository.ProductRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) *PurchaseHandler {
 	return &PurchaseHandler{
 		purchaseRepo:        purchaseRepo,
-		customerRepo:        customerRepo,
+		supplierRepo:        supplierRepo,
 		productRepo:         productRepo,
 		stockAdjustmentRepo: stockAdjustmentRepo,
 	}
 }
 
-// enrichPurchaseWithCustomerData enriches a purchase with customer data
-func (h *PurchaseHandler) enrichPurchaseWithCustomerData(purchase *models.Purchase) {
-	customer, err := h.customerRepo.GetByID(purchase.CustomerID)
+// enrichPurchaseWithSupplierData enriches a purchase with supplier data
+func (h *PurchaseHandler) enrichPurchaseWithSupplierData(purchase *models.Purchase) {
+	supplier, err := h.supplierRepo.GetByID(purchase.SupplierID)
 	if err == nil {
-		// Update purchase with customer data
-		purchase.CustomerName = customer.CompanyName
-		if purchase.CustomerName == "" {
-			purchase.CustomerName = customer.ContactName
+		// Update purchase with supplier data
+		purchase.SupplierName = supplier.CompanyName
+		if purchase.SupplierName == "" {
+			purchase.SupplierName = supplier.ContactName
 		}
-		purchase.ContactName = &customer.ContactName
-		purchase.CustomerCode = &customer.CustomerCode
-		purchase.TaxID = &customer.TaxID
-		purchase.Address = &customer.Address
-		purchase.Phone = &customer.Phone
+		purchase.ContactName = &supplier.ContactName
+		purchase.SupplierCode = &supplier.SupplierCode
+		purchase.TaxID = &supplier.TaxID
+		purchase.Address = &supplier.Address
+		purchase.Phone = &supplier.Phone
 	}
 }
 
@@ -82,9 +82,9 @@ func (h *PurchaseHandler) GetPurchases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enrich purchases with customer data
+	// Enrich purchases with supplier data
 	for i := range purchases {
-		h.enrichPurchaseWithCustomerData(purchases[i])
+		h.enrichPurchaseWithSupplierData(purchases[i])
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -108,8 +108,8 @@ func (h *PurchaseHandler) GetPurchase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enrich purchase with customer data
-	h.enrichPurchaseWithCustomerData(purchase)
+	// Enrich purchase with supplier data
+	h.enrichPurchaseWithSupplierData(purchase)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(purchase)
@@ -138,19 +138,19 @@ func (h *PurchaseHandler) CreatePurchase(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get customer name
-	customer, err := h.customerRepo.GetByID(purchaseRequest.CustomerID)
+	// Get supplier name
+	supplier, err := h.supplierRepo.GetByID(purchaseRequest.SupplierID)
 	if err != nil {
-		http.Error(w, "Customer not found", http.StatusBadRequest)
+		http.Error(w, "Supplier not found", http.StatusBadRequest)
 		return
 	}
 
 	purchase := purchaseRequest.ToPurchase()
-	purchase.CustomerName = customer.CompanyName
-	if purchase.CustomerName == "" {
-		purchase.CustomerName = customer.ContactName
+	purchase.SupplierName = supplier.CompanyName
+	if purchase.SupplierName == "" {
+		purchase.SupplierName = supplier.ContactName
 	}
-	purchase.ContactName = &customer.ContactName
+	purchase.ContactName = &supplier.ContactName
 
 	// Generate unique purchase code
 	purchaseCode, err := h.generatePurchaseID(ctx, purchase.IsVAT)
@@ -201,18 +201,18 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get customer name
-	customer, err := h.customerRepo.GetByID(purchaseRequest.CustomerID)
+	// Get supplier name
+	supplier, err := h.supplierRepo.GetByID(purchaseRequest.SupplierID)
 	if err != nil {
-		http.Error(w, "Customer not found", http.StatusBadRequest)
+		http.Error(w, "Supplier not found", http.StatusBadRequest)
 		return
 	}
 
 	// Update purchase
 	existingPurchase.UpdateFromRequest(&purchaseRequest)
-	existingPurchase.CustomerName = customer.CompanyName
-	if existingPurchase.CustomerName == "" {
-		existingPurchase.CustomerName = customer.ContactName
+	existingPurchase.SupplierName = supplier.CompanyName
+	if existingPurchase.SupplierName == "" {
+		existingPurchase.SupplierName = supplier.ContactName
 	}
 
 	if err := h.purchaseRepo.Update(ctx, id, existingPurchase); err != nil {
