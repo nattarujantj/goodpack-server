@@ -701,9 +701,9 @@ func (h *MigrationHandler) parseAndMigratePurchaseCSV(file io.Reader) (*Migratio
 		}
 
 		// Validate required fields
-		if purchase.CustomerID == "" {
+		if purchase.SupplierID == "" {
 			result.FailedRows++
-			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: Customer not found", rowNum))
+			result.Errors = append(result.Errors, fmt.Sprintf("Row %d: Supplier not found", rowNum))
 			continue
 		}
 
@@ -782,11 +782,11 @@ func (h *MigrationHandler) createPurchaseFromGroup(records []PurchaseRecord, hea
 		purchaseDate = time.Now() // Default to current time if parsing fails
 	}
 
-	// Get customer by code
-	customerCode := h.getFieldValue(firstRecord, headerMap, "customercode")
-	customer, err := h.customerRepo.GetByCustomerCode(customerCode)
+	// Get supplier by code (using customer repo for backward compatibility in migration)
+	supplierCode := h.getFieldValue(firstRecord, headerMap, "customercode")
+	supplier, err := h.customerRepo.GetByCustomerCode(supplierCode)
 	if err != nil {
-		return nil, fmt.Errorf("customer not found: %s", customerCode)
+		return nil, fmt.Errorf("supplier not found: %s", supplierCode)
 	}
 
 	// Parse VAT status
@@ -865,13 +865,13 @@ func (h *MigrationHandler) createPurchaseFromGroup(records []PurchaseRecord, hea
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 		PurchaseDate: purchaseDate,
-		CustomerID:   customer.ID.Hex(),
-		CustomerName: customer.CompanyName,
-		ContactName:  &customer.ContactName,
-		CustomerCode: &customer.CustomerCode,
-		TaxID:        &customer.TaxID,
-		Address:      &customer.Address,
-		Phone:        &customer.Phone,
+		SupplierID:   supplier.ID.Hex(),
+		SupplierName: supplier.CompanyName,
+		ContactName:  &supplier.ContactName,
+		SupplierCode: &supplier.CustomerCode,
+		TaxID:        &supplier.TaxID,
+		Address:      &supplier.Address,
+		Phone:        &supplier.Phone,
 		Notes:        notesPtr,
 		Items:        items,
 		IsVAT:        isVAT,

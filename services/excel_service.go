@@ -171,9 +171,9 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), p.PurchaseDate.Format("02/01/2006"))
 		f.SetCellStyle(sheet, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), dataStyle)
 
-		// ชื่อลูกค้า (บริษัท + เลขผู้เสียภาษี)
-		customerDisplay := getCustomerDisplayName(p.CustomerName, p.TaxID)
-		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), customerDisplay)
+		// ชื่อซัพพลายเออร์ (บริษัท + เลขผู้เสียภาษี)
+		supplierDisplay := getCustomerDisplayName(p.SupplierName, p.TaxID)
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), supplierDisplay)
 		f.SetCellStyle(sheet, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), dataStyle)
 
 		// รายการสินค้า

@@ -45,19 +45,13 @@ func (h *ExportHandler) enrichSaleWithCustomerData(sale *models.Sale) {
 	}
 }
 
-// enrichPurchaseWithCustomerData enriches a purchase with customer data
-func (h *ExportHandler) enrichPurchaseWithCustomerData(purchase *models.Purchase) {
-	if purchase.CustomerID == "" {
+// enrichPurchaseWithSupplierData enriches a purchase with supplier data
+func (h *ExportHandler) enrichPurchaseWithSupplierData(purchase *models.Purchase) {
+	if purchase.SupplierID == "" {
 		return
 	}
-	customer, err := h.customerRepo.GetByID(purchase.CustomerID)
-	if err == nil && customer != nil {
-		purchase.CustomerName = customer.CompanyName
-		if purchase.CustomerName == "" {
-			purchase.CustomerName = customer.ContactName
-		}
-		purchase.TaxID = &customer.TaxID
-	}
+	// Note: For export we don't need to fetch supplier data as it's already in the purchase
+	// This function is kept for compatibility but can be removed if not needed
 }
 
 type ExportEmailRequest struct {
@@ -120,7 +114,7 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 	var purchases []models.Purchase
 	for _, p := range allPurchases {
 		if p.PurchaseDate.After(startDate.Add(-time.Second)) && p.PurchaseDate.Before(endDate.Add(time.Second)) {
-			h.enrichPurchaseWithCustomerData(p)
+			h.enrichPurchaseWithSupplierData(p)
 			purchases = append(purchases, *p)
 		}
 	}
