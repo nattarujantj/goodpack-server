@@ -8,27 +8,29 @@ import (
 )
 
 type Customer struct {
-	ID            primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	CustomerCode  string             `bson:"customerCode" json:"customerCode"`
-	CompanyName   string             `bson:"companyName" json:"companyName"`
-	ContactName   string             `bson:"contactName" json:"contactName"`     // Legacy: ผู้ติดต่อหลัก (backward compatibility)
-	TaxID         string             `bson:"taxId" json:"taxId"`
-	Phone         string             `bson:"phone" json:"phone"`                 // Legacy: เบอร์โทรหลัก (backward compatibility)
-	Address       string             `bson:"address" json:"address"`
-	ContactMethod string             `bson:"contactMethod" json:"contactMethod"`
-	Contacts      []Contact          `bson:"contacts" json:"contacts"`           // รายการผู้ติดต่อทั้งหมด
-	CreatedAt     time.Time          `bson:"createdAt" json:"createdAt"`
-	UpdatedAt     time.Time          `bson:"updatedAt" json:"updatedAt"`
+	ID            primitive.ObjectID    `bson:"_id,omitempty" json:"id"`
+	CustomerCode  string                `bson:"customerCode" json:"customerCode"`
+	CompanyName   string                `bson:"companyName" json:"companyName"`
+	ContactName   string                `bson:"contactName" json:"contactName"`     // Legacy: ผู้ติดต่อหลัก (backward compatibility)
+	TaxID         string                `bson:"taxId" json:"taxId"`
+	Phone         string                `bson:"phone" json:"phone"`                 // Legacy: เบอร์โทรหลัก (backward compatibility)
+	Address       string                `bson:"address" json:"address"`
+	ContactMethod string                `bson:"contactMethod" json:"contactMethod"`
+	Contacts      []Contact             `bson:"contacts" json:"contacts"`           // รายการผู้ติดต่อทั้งหมด
+	BankAccounts  []CustomerBankAccount `bson:"bankAccounts" json:"bankAccounts"`   // รายการบัญชีธนาคาร
+	CreatedAt     time.Time             `bson:"createdAt" json:"createdAt"`
+	UpdatedAt     time.Time             `bson:"updatedAt" json:"updatedAt"`
 }
 
 type CustomerRequest struct {
-	CompanyName   string    `json:"companyName" bson:"companyName"`
-	ContactName   string    `json:"contactName" bson:"contactName"`
-	TaxID         string    `json:"taxId" bson:"taxId"`
-	Phone         string    `json:"phone" bson:"phone"`
-	Address       string    `json:"address" bson:"address"`
-	ContactMethod string    `json:"contactMethod" bson:"contactMethod"`
-	Contacts      []Contact `json:"contacts" bson:"contacts"`
+	CompanyName   string                `json:"companyName" bson:"companyName"`
+	ContactName   string                `json:"contactName" bson:"contactName"`
+	TaxID         string                `json:"taxId" bson:"taxId"`
+	Phone         string                `json:"phone" bson:"phone"`
+	Address       string                `json:"address" bson:"address"`
+	ContactMethod string                `json:"contactMethod" bson:"contactMethod"`
+	Contacts      []Contact             `json:"contacts" bson:"contacts"`
+	BankAccounts  []CustomerBankAccount `json:"bankAccounts" bson:"bankAccounts"`
 }
 
 func (cr *CustomerRequest) ToCustomer() *Customer {
@@ -64,6 +66,7 @@ func (cr *CustomerRequest) ToCustomer() *Customer {
 		Address:       cr.Address,
 		ContactMethod: cr.ContactMethod,
 		Contacts:      contacts,
+		BankAccounts:  cr.BankAccounts,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -75,6 +78,7 @@ func (c *Customer) UpdateFromRequest(cr *CustomerRequest) {
 	c.Address = cr.Address
 	c.ContactMethod = cr.ContactMethod
 	c.Contacts = cr.Contacts
+	c.BankAccounts = cr.BankAccounts
 	
 	// Update legacy fields from primary contact
 	if len(cr.Contacts) > 0 {
