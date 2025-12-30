@@ -12,6 +12,7 @@ import (
 
 	"goodpack-server/models"
 	"goodpack-server/repository"
+	"goodpack-server/utils"
 )
 
 type StockAdjustmentHandler struct {
@@ -125,7 +126,7 @@ func RecordStockChange(
 		SourceID:       sourceID,
 		SourceCode:     sourceCode,
 		Notes:          notes,
-		CreatedAt:      time.Now(),
+		CreatedAt:      utils.NowInThailand(),
 	}
 
 	// Store before values
@@ -192,7 +193,7 @@ func (h *StockAdjustmentHandler) AdjustStock(w http.ResponseWriter, r *http.Requ
 	ApplyManualStockAdjustment(product, req.AdjustmentType, req.StockType, req.Quantity)
 
 	// Update product
-	product.UpdatedAt = time.Now()
+	product.UpdatedAt = utils.NowInThailand()
 	if err := h.productRepo.Update(ctx, product.ID.Hex(), product); err != nil {
 		http.Error(w, "Failed to update product stock", http.StatusInternalServerError)
 		return
@@ -258,7 +259,7 @@ func (h *StockAdjustmentHandler) GetStockHistory(w http.ResponseWriter, r *http.
 			startDate = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 		}
 		if endDate.IsZero() {
-			endDate = time.Now()
+			endDate = utils.NowInThailand()
 		}
 		adjustments, err = h.adjustmentRepo.GetByProductIDAndDateRange(ctx, productID, startDate, endDate, limit)
 	} else {
@@ -370,7 +371,7 @@ func (h *StockAdjustmentHandler) DeleteStockAdjustment(w http.ResponseWriter, r 
 	ApplyStockAdjustment(product, reverseType, adjustment.StockType, adjustment.Quantity)
 
 	// Update product
-	product.UpdatedAt = time.Now()
+	product.UpdatedAt = utils.NowInThailand()
 	if err := h.productRepo.Update(ctx, product.ID.Hex(), product); err != nil {
 		http.Error(w, "Failed to update product stock", http.StatusInternalServerError)
 		return

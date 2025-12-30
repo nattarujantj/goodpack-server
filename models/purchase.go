@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"goodpack-server/utils"
 )
 
 type Purchase struct {
@@ -84,7 +85,7 @@ type PurchaseRequest struct {
 }
 
 func (pr *PurchaseRequest) ToPurchase() *Purchase {
-	now := time.Now()
+	now := utils.NowInThailand()
 
 	// Calculate totals
 	var totalAmount float64
@@ -148,5 +149,5 @@ func (p *Purchase) UpdateFromRequest(pr *PurchaseRequest) {
 	p.TotalAmount = totalAmount
 	p.TotalVAT = totalVAT
 	p.GrandTotal = grandTotal
-	p.UpdatedAt = time.Now()
+	p.UpdatedAt = utils.NowInThailand()
 }

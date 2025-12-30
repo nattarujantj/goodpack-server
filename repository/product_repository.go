@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -133,7 +132,7 @@ func (r *ProductRepository) UpdateStock(ctx context.Context, id string, stock mo
 		bson.M{
 			"$set": bson.M{
 				"stock":     stock,
-				"updatedAt": time.Now(),
+				"updatedAt": utils.NowInThailand(),
 			},
 		},
 	)
@@ -152,7 +151,7 @@ func (r *ProductRepository) UpdatePrice(ctx context.Context, id string, price mo
 		bson.M{
 			"$set": bson.M{
 				"price":     price,
-				"updatedAt": time.Now(),
+				"updatedAt": utils.NowInThailand(),
 			},
 		},
 	)

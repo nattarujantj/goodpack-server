@@ -3,13 +3,13 @@ package routes
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 
 	"goodpack-server/handlers"
 	"goodpack-server/repository"
+	"goodpack-server/utils"
 )
 
 func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) http.Handler {
@@ -135,7 +135,7 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	response := map[string]interface{}{
 		"status":    "healthy",
-		"timestamp": time.Now().Format(time.RFC3339),
+		"timestamp": utils.NowInThailand().Format("2006-01-02 15:04:05"),
 		"version":   "1.0.0",
 		"database":  "mongodb",
 	}

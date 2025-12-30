@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"goodpack-server/models"
 	"goodpack-server/repository"
+	"goodpack-server/utils"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -119,8 +119,8 @@ func (h *ImportHandler) ImportCustomers(w http.ResponseWriter, r *http.Request) 
 			Phone:         phone,
 			Address:       address,
 			ContactMethod: contactMethod,
-			CreatedAt:     time.Now(),
-			UpdatedAt:     time.Now(),
+			CreatedAt:     utils.NowInThailand(),
+			UpdatedAt:     utils.NowInThailand(),
 		}
 
 		// Save to database (repository generates CustomerCode automatically)
@@ -139,7 +139,7 @@ func (h *ImportHandler) ImportCustomers(w http.ResponseWriter, r *http.Request) 
 
 	// Set response headers
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=customers_result_%s.csv", time.Now().Format("20060102_150405")))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=customers_result_%s.csv", utils.NowInThailand().Format("20060102_150405")))
 	w.Header().Set("X-Import-Success", strconv.Itoa(successCount))
 	w.Header().Set("X-Import-Failed", strconv.Itoa(failCount))
 	w.Header().Set("X-Import-Total", strconv.Itoa(successCount+failCount))
@@ -294,8 +294,8 @@ func (h *ImportHandler) ImportProducts(w http.ResponseWriter, r *http.Request) {
 				ActualStock:        initialActualStock,
 				ActualStockInitial: initialActualStock,
 			},
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			CreatedAt: utils.NowInThailand(),
+			UpdatedAt: utils.NowInThailand(),
 		}
 
 		// Save to database (repository generates SKUID and Code automatically)
@@ -314,7 +314,7 @@ func (h *ImportHandler) ImportProducts(w http.ResponseWriter, r *http.Request) {
 
 	// Set response headers
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=products_result_%s.csv", time.Now().Format("20060102_150405")))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=products_result_%s.csv", utils.NowInThailand().Format("20060102_150405")))
 	w.Header().Set("X-Import-Success", strconv.Itoa(successCount))
 	w.Header().Set("X-Import-Failed", strconv.Itoa(failCount))
 	w.Header().Set("X-Import-Total", strconv.Itoa(successCount+failCount))

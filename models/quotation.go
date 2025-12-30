@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"goodpack-server/utils"
 )
 
 // CustomTime handles ISO 8601 datetime format
@@ -95,7 +96,7 @@ type QuotationRequest struct {
 
 // ToQuotation converts QuotationRequest to Quotation
 func (qr *QuotationRequest) ToQuotation() *Quotation {
-	now := time.Now()
+	now := utils.NowInThailand()
 	quotation := &Quotation{
 		QuotationDate:     qr.QuotationDate.Time,
 		CustomerID:        qr.CustomerID,
@@ -137,12 +138,12 @@ func (q *Quotation) UpdateFromRequest(qr *QuotationRequest) {
 	q.BankName = qr.BankName
 	q.BankAccountName = qr.BankAccountName
 	q.BankAccountNumber = qr.BankAccountNumber
-	q.UpdatedAt = time.Now()
+	q.UpdatedAt = utils.NowInThailand()
 }
 
 // GenerateQuotationCode generates a new quotation code in format QU-YYMM-XXXX
 func GenerateQuotationCode(lastCode string) (string, error) {
-	now := time.Now()
+	now := utils.NowInThailand()
 	buddhistYear := now.Year() + 543 // Convert to Buddhist year
 	month := int(now.Month())
 
@@ -194,7 +195,7 @@ func (q *Quotation) ToSaleRequest() *SaleRequest {
 	}
 
 	return &SaleRequest{
-		SaleDate:     time.Now(), // Use current date for sale
+		SaleDate:     utils.NowInThailand(), // Use current date for sale
 		CustomerID:   q.CustomerID,
 		Items:        saleItems,
 		IsVAT:        q.IsVAT,

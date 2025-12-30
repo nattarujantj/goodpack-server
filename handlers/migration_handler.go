@@ -13,6 +13,7 @@ import (
 
 	"goodpack-server/models"
 	"goodpack-server/repository"
+	"goodpack-server/utils"
 )
 
 type MigrationHandler struct {
@@ -171,7 +172,7 @@ func (h *MigrationHandler) parseAndMigrateCustomerCSV(file io.Reader) (*Migratio
 		SuccessRows: 0,
 		FailedRows:  0,
 		Errors:      []string{},
-		ProcessedAt: time.Now(),
+		ProcessedAt: utils.NowInThailand(),
 	}
 
 	// Process data rows
@@ -187,8 +188,8 @@ func (h *MigrationHandler) parseAndMigrateCustomerCSV(file io.Reader) (*Migratio
 			Phone:         h.getFieldValue(record, headerMap, "phone"),
 			Address:       h.getFieldValue(record, headerMap, "address"),
 			ContactMethod: h.getFieldValue(record, headerMap, "contactmethod"),
-			CreatedAt:     time.Now(),
-			UpdatedAt:     time.Now(),
+			CreatedAt:     utils.NowInThailand(),
+			UpdatedAt:     utils.NowInThailand(),
 		}
 
 		// Validate required fields
@@ -280,7 +281,7 @@ func (h *MigrationHandler) GetMigrationStatus(w http.ResponseWriter, r *http.Req
 
 	status := map[string]interface{}{
 		"totalCustomers": len(customers),
-		"lastChecked":    time.Now(),
+		"lastChecked":    utils.NowInThailand(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -386,7 +387,7 @@ func (h *MigrationHandler) parseAndMigrateProductCSV(file io.Reader) (*Migration
 		SuccessRows: 0,
 		FailedRows:  0,
 		Errors:      []string{},
-		ProcessedAt: time.Now(),
+		ProcessedAt: utils.NowInThailand(),
 	}
 
 	// Process data rows
@@ -403,8 +404,8 @@ func (h *MigrationHandler) parseAndMigrateProductCSV(file io.Reader) (*Migration
 			Color:       colorValue,
 			Size:        h.getFieldValue(record, headerMap, "size"),
 			Category:    h.getFieldValue(record, headerMap, "category"),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			CreatedAt:   utils.NowInThailand(),
+			UpdatedAt:   utils.NowInThailand(),
 		}
 
 		// Debug: Log parsed values for first row
@@ -682,7 +683,7 @@ func (h *MigrationHandler) parseAndMigratePurchaseCSV(file io.Reader) (*Migratio
 		SuccessRows: 0,
 		FailedRows:  0,
 		Errors:      []string{},
-		ProcessedAt: time.Now(),
+		ProcessedAt: utils.NowInThailand(),
 	}
 
 	// Group records by purchase (same purchaseCode or purchaseDate + customerCode)
@@ -779,7 +780,7 @@ func (h *MigrationHandler) createPurchaseFromGroup(records []PurchaseRecord, hea
 	purchaseDateStr := h.getFieldValue(firstRecord, headerMap, "purchasedate")
 	purchaseDate, err := time.Parse("2006-01-02", purchaseDateStr)
 	if err != nil {
-		purchaseDate = time.Now() // Default to current time if parsing fails
+		purchaseDate = utils.NowInThailand() // Default to current time if parsing fails
 	}
 
 	// Get supplier by code (using customer repo for backward compatibility in migration)
@@ -862,8 +863,8 @@ func (h *MigrationHandler) createPurchaseFromGroup(records []PurchaseRecord, hea
 	// Create purchase
 	purchase := &models.Purchase{
 		PurchaseCode: purchaseCode,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:    utils.NowInThailand(),
+		UpdatedAt:    utils.NowInThailand(),
 		PurchaseDate: purchaseDate,
 		SupplierID:   supplier.ID.Hex(),
 		SupplierName: supplier.CompanyName,
@@ -926,7 +927,7 @@ func (h *MigrationHandler) updateProductsFromPurchase(purchase *models.Purchase)
 // generatePurchaseCode generates a unique purchase code
 func (h *MigrationHandler) generatePurchaseCode(isVAT bool) (string, error) {
 	// This is a simplified version - you might want to use the actual repository method
-	now := time.Now()
+	now := utils.NowInThailand()
 	year := now.Year()
 	month := int(now.Month())
 	day := now.Day()
@@ -1035,7 +1036,7 @@ func (h *MigrationHandler) parseAndMigrateSaleCSV(file io.Reader) (*MigrationRes
 		SuccessRows: 0,
 		FailedRows:  0,
 		Errors:      []string{},
-		ProcessedAt: time.Now(),
+		ProcessedAt: utils.NowInThailand(),
 	}
 
 	// Group records by sale (same saleCode or saleDate + customerCode)
@@ -1132,7 +1133,7 @@ func (h *MigrationHandler) createSaleFromGroup(records []SaleRecord, headerMap m
 	saleDateStr := h.getFieldValue(firstRecord, headerMap, "saledate")
 	saleDate, err := time.Parse("2006-01-02", saleDateStr)
 	if err != nil {
-		saleDate = time.Now() // Default to current time if parsing fails
+		saleDate = utils.NowInThailand() // Default to current time if parsing fails
 	}
 
 	// Get customer by code
@@ -1202,8 +1203,8 @@ func (h *MigrationHandler) createSaleFromGroup(records []SaleRecord, headerMap m
 	// Create sale
 	sale := &models.Sale{
 		SaleCode:     saleCode,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:    utils.NowInThailand(),
+		UpdatedAt:    utils.NowInThailand(),
 		SaleDate:     saleDate,
 		CustomerID:   customer.ID.Hex(),
 		CustomerName: customer.CompanyName,
@@ -1266,7 +1267,7 @@ func (h *MigrationHandler) updateProductsFromSale(sale *models.Sale) error {
 // generateSaleCode generates a unique sale code
 func (h *MigrationHandler) generateSaleCode(isVAT bool) (string, error) {
 	// This is a simplified version - you might want to use the actual repository method
-	now := time.Now()
+	now := utils.NowInThailand()
 	year := now.Year()
 	month := int(now.Month())
 	day := now.Day()

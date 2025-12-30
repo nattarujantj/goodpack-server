@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"goodpack-server/utils"
 )
 
 type Sale struct {
@@ -60,7 +61,7 @@ type SaleRequest struct {
 }
 
 func (sr *SaleRequest) ToSale() *Sale {
-	now := time.Now()
+	now := utils.NowInThailand()
 	vatType := sr.VatType
 	if vatType == "" {
 		vatType = "exclusive" // Default to VAT นอก
@@ -104,5 +105,5 @@ func (s *Sale) UpdateFromRequest(req *SaleRequest) {
 	s.BankName = req.BankName
 	s.BankAccountName = req.BankAccountName
 	s.BankAccountNumber = req.BankAccountNumber
-	s.UpdatedAt = time.Now()
+	s.UpdatedAt = utils.NowInThailand()
 }

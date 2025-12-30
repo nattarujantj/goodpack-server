@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"goodpack-server/utils"
 )
 
 // StockAdjustmentType represents the type of stock adjustment
@@ -85,7 +86,7 @@ type StockAdjustmentRequest struct {
 
 // ToStockAdjustment converts StockAdjustmentRequest to StockAdjustment
 func (req *StockAdjustmentRequest) ToStockAdjustment(product *Product, sourceType SourceType, sourceID, sourceCode *string) *StockAdjustment {
-	now := time.Now()
+	now := utils.NowInThailand()
 
 	adjustment := &StockAdjustment{
 		ProductID:      product.ID.Hex(),

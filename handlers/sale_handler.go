@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"goodpack-server/models"
 	"goodpack-server/repository"
 	"goodpack-server/services"
+	"goodpack-server/utils"
 )
 
 type SaleHandler struct {
@@ -62,7 +62,7 @@ func (h *SaleHandler) enrichSaleWithBankAccountData(sale *models.Sale) {
 
 // generateSaleID generates a unique sale ID based on VAT status
 func (h *SaleHandler) generateSaleID(ctx context.Context, isVAT bool) (string, error) {
-	now := time.Now()
+	now := utils.NowInThailand()
 	// Convert to Buddhist Era (BE)
 	beYear := now.Year() + 543
 	dateStr := fmt.Sprintf("%02d%02d", beYear%100, int(now.Month())) // YYMM format
@@ -345,7 +345,7 @@ func (h *SaleHandler) updateQuotationWithSaleCode(ctx context.Context, quotation
 
 	// Update quotation with sale code
 	quotation.SaleCode = &saleCode
-	quotation.UpdatedAt = time.Now()
+	quotation.UpdatedAt = utils.NowInThailand()
 
 	// Save updated quotation
 	return h.quotationRepo.Update(quotation.ID.Hex(), quotation)

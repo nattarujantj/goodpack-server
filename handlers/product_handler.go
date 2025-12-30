@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/gorilla/mux"
 
 	"goodpack-server/config"
 	"goodpack-server/models"
 	"goodpack-server/repository"
+	"goodpack-server/utils"
 )
 
 type ProductHandler struct {
@@ -330,7 +330,7 @@ func (h *ProductHandler) UploadProductImage(w http.ResponseWriter, r *http.Reque
 
 	// Generate unique filename
 	ext := filepath.Ext(handler.Filename)
-	timestamp := time.Now().Unix()
+	timestamp := utils.NowInThailand().Unix()
 	filename := fmt.Sprintf("%s_%d%s", productId, timestamp, ext)
 	filePath := filepath.Join(uploadDir, filename)
 

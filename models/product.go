@@ -103,7 +103,7 @@ type PriceUpdateRequest struct {
 
 // ToProduct converts ProductRequest to Product
 func (pr *ProductRequest) ToProduct() *Product {
-	now := time.Now()
+	now := utils.NowInThailand()
 	return &Product{
 		Name:        pr.Name,
 		Description: pr.Description,
@@ -129,7 +129,7 @@ func (p *Product) UpdateFromRequest(pr *ProductRequest) {
 	p.ImageURL = pr.ImageURL
 	p.Price = pr.Price
 	p.Stock = pr.Stock
-	p.UpdatedAt = time.Now()
+	p.UpdatedAt = utils.NowInThailand()
 }
 
 // GetTotalStock returns the actual stock (ActualStock represents the real total)
@@ -147,7 +147,7 @@ func (p *Product) GetDisplayPrice() float64 {
 
 // UpdatePrice updates price information based on new transaction
 func (p *Product) UpdatePrice(newPrice float64, isVAT bool, isPurchase bool) {
-	now := time.Now()
+	now := utils.NowInThailand()
 	currentYear := now.Year()
 	currentMonth := int(now.Month())
 

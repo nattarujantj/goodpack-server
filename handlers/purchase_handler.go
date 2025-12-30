@@ -8,10 +8,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
 
 	"goodpack-server/models"
 	"goodpack-server/repository"
+	"goodpack-server/utils"
 )
 
 type PurchaseHandler struct {
@@ -49,7 +49,7 @@ func (h *PurchaseHandler) enrichPurchaseWithSupplierData(purchase *models.Purcha
 
 // generatePurchaseID generates a unique purchase ID based on VAT status
 func (h *PurchaseHandler) generatePurchaseID(ctx context.Context, isVAT bool) (string, error) {
-	now := time.Now()
+	now := utils.NowInThailand()
 	// Convert to Buddhist Era (BE)
 	beYear := now.Year() + 543
 	dateStr := fmt.Sprintf("%02d%02d", beYear%100, int(now.Month())) // YYMM format
