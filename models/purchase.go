@@ -3,8 +3,9 @@ package models
 import (
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"goodpack-server/utils"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Purchase struct {
@@ -34,12 +35,14 @@ type Purchase struct {
 }
 
 type PurchaseItem struct {
-	ProductID   string  `bson:"productId" json:"productId"`
-	ProductName string  `bson:"productName" json:"productName"`
-	ProductCode string  `bson:"productCode" json:"productCode"`
-	Quantity    int     `bson:"quantity" json:"quantity"`
-	UnitPrice   float64 `bson:"unitPrice" json:"unitPrice"`
-	TotalPrice  float64 `bson:"totalPrice" json:"totalPrice"`
+	ProductID        string   `bson:"productId" json:"productId"`
+	ProductName      string   `bson:"productName" json:"productName"`
+	ProductCode      string   `bson:"productCode" json:"productCode"`
+	Quantity         int      `bson:"quantity" json:"quantity"`
+	UnitPrice        float64  `bson:"unitPrice" json:"unitPrice"`
+	PreformProductID *string  `bson:"preformProductId,omitempty" json:"preformProductId,omitempty"`
+	PreformUnitPrice *float64 `bson:"preformUnitPrice,omitempty" json:"preformUnitPrice,omitempty"`
+	TotalPrice       float64  `bson:"totalPrice" json:"totalPrice"`
 }
 
 type PaymentInfo struct {

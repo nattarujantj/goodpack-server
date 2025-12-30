@@ -279,8 +279,14 @@ func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *model
 			continue // Skip if product not found
 		}
 
+		// Calculate effective unit price (including preform cost if any)
+		effectiveUnitPrice := item.UnitPrice
+		if item.PreformUnitPrice != nil {
+			effectiveUnitPrice += *item.PreformUnitPrice
+		}
+
 		// Update purchase price using new UpdatePrice method with quantity
-		product.UpdatePrice(item.UnitPrice, purchase.IsVAT, true, item.Quantity) // true = isPurchase
+		product.UpdatePrice(effectiveUnitPrice, purchase.IsVAT, true, item.Quantity) // true = isPurchase
 
 		// Determine stock type based on VAT status
 		var stockType models.StockType
@@ -316,6 +322,37 @@ func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *model
 		); err != nil {
 			// Log error but don't fail the purchase
 			fmt.Printf("Warning: Failed to record stock change history: %v\n", err)
+		}
+
+		// If preform is used, deduct preform stock
+		if item.PreformProductID != nil && *item.PreformProductID != "" {
+			preformProduct, err := h.productRepo.GetByID(ctx, *item.PreformProductID)
+			if err == nil {
+				// Deduct preform stock (always use actual stock for preform)
+				ApplyStockAdjustment(preformProduct, models.AdjustmentTypeReduce, models.StockTypeActualStock, item.Quantity)
+
+				// Save updated preform product
+				if err := h.productRepo.Update(ctx, *item.PreformProductID, preformProduct); err != nil {
+					fmt.Printf("Warning: Failed to update preform product stock: %v\n", err)
+				} else {
+					// Record preform stock change in history
+					preformNotes := fmt.Sprintf("ใช้ในรายการซื้อ %s", purchaseCode)
+					if err := RecordStockChange(
+						ctx,
+						h.stockAdjustmentRepo,
+						preformProduct,
+						models.SourceTypePurchase,
+						&purchaseID,
+						&purchaseCode,
+						models.AdjustmentTypeReduce,
+						models.StockTypeActualStock,
+						item.Quantity,
+						&preformNotes,
+					); err != nil {
+						fmt.Printf("Warning: Failed to record preform stock change history: %v\n", err)
+					}
+				}
+			}
 		}
 	}
 
