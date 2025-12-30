@@ -901,8 +901,8 @@ func (h *MigrationHandler) updateProductsFromPurchase(purchase *models.Purchase)
 			return fmt.Errorf("failed to get product %s: %v", item.ProductID, err)
 		}
 
-		// Update price
-		product.UpdatePrice(item.UnitPrice, purchase.IsVAT, true) // true = isPurchase
+		// Update price with quantity for Weighted Average
+		product.UpdatePrice(item.UnitPrice, purchase.IsVAT, true, item.Quantity) // true = isPurchase
 
 		// Update stock
 		if purchase.IsVAT {
@@ -1238,8 +1238,8 @@ func (h *MigrationHandler) updateProductsFromSale(sale *models.Sale) error {
 			return fmt.Errorf("failed to get product %s: %v", item.ProductID, err)
 		}
 
-		// Update price
-		product.UpdatePrice(item.UnitPrice, sale.IsVAT, false) // false = isSale
+		// Update price with quantity for Weighted Average
+		product.UpdatePrice(item.UnitPrice, sale.IsVAT, false, item.Quantity) // false = isSale
 
 		// Update stock - reduce remaining stock
 		if sale.IsVAT {

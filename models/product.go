@@ -13,19 +13,24 @@ type PriceInfo struct {
 	Latest     float64 `bson:"latest" json:"latest"`         // ราคาล่าสุด
 	Min        float64 `bson:"min" json:"min"`               // ราคาต่ำสุด
 	Max        float64 `bson:"max" json:"max"`               // ราคาสูงสุด
-	Average    float64 `bson:"average" json:"average"`       // ราคาเฉลี่ย
-	AverageYTD float64 `bson:"averageYTD" json:"averageYTD"` // ราคาเฉลี่ย YTD
-	AverageMTD float64 `bson:"averageMTD" json:"averageMTD"` // ราคาเฉลี่ย MTD
+	Average    float64 `bson:"average" json:"average"`       // ราคาเฉลี่ย (Weighted Average)
+	AverageYTD float64 `bson:"averageYTD" json:"averageYTD"` // ราคาเฉลี่ย YTD (Weighted Average)
+	AverageMTD float64 `bson:"averageMTD" json:"averageMTD"` // ราคาเฉลี่ย MTD (Weighted Average)
 
-	// สำหรับคำนวณ YTD/MTD
-	YTDCount int     `bson:"ytdCount" json:"ytdCount"` // จำนวนครั้งที่ซื้อ/ขายในปีนี้
-	YTDTotal float64 `bson:"ytdTotal" json:"ytdTotal"` // รวมราคาในปีนี้
-	YTDYear  int     `bson:"ytdYear" json:"ytdYear"`   // ปีที่เก็บข้อมูล YTD
+	// สำหรับคำนวณ Weighted Average
+	TotalQuantity int     `bson:"totalQuantity" json:"totalQuantity"` // จำนวนสินค้าทั้งหมด
+	TotalAmount   float64 `bson:"totalAmount" json:"totalAmount"`     // มูลค่ารวม (ราคา × จำนวน)
 
-	MTDCount int     `bson:"mtdCount" json:"mtdCount"` // จำนวนครั้งที่ซื้อ/ขายในเดือนนี้
-	MTDTotal float64 `bson:"mtdTotal" json:"mtdTotal"` // รวมราคาในเดือนนี้
-	MTDMonth int     `bson:"mtdMonth" json:"mtdMonth"` // เดือนที่เก็บข้อมูล MTD
-	MTDYear  int     `bson:"mtdYear" json:"mtdYear"`   // ปีที่เก็บข้อมูล MTD
+	// สำหรับคำนวณ Weighted Average YTD
+	YTDYear        int     `bson:"ytdYear" json:"ytdYear"`         // ปีที่เก็บข้อมูล YTD
+	YTDQuantity    int     `bson:"ytdQuantity" json:"ytdQuantity"`     // จำนวนสินค้าในปีนี้
+	YTDTotalAmount float64 `bson:"ytdTotalAmount" json:"ytdTotalAmount"` // มูลค่ารวมในปีนี้ (ราคา × จำนวน)
+
+	// สำหรับคำนวณ Weighted Average MTD
+	MTDMonth       int     `bson:"mtdMonth" json:"mtdMonth"`       // เดือนที่เก็บข้อมูล MTD
+	MTDYear        int     `bson:"mtdYear" json:"mtdYear"`         // ปีที่เก็บข้อมูล MTD
+	MTDQuantity    int     `bson:"mtdQuantity" json:"mtdQuantity"`     // จำนวนสินค้าในเดือนนี้
+	MTDTotalAmount float64 `bson:"mtdTotalAmount" json:"mtdTotalAmount"` // มูลค่ารวมในเดือนนี้ (ราคา × จำนวน)
 }
 
 // TierPrice represents tier pricing for sales
@@ -63,32 +68,34 @@ type Stock struct {
 
 // Product represents a product in the inventory
 type Product struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	SKUID       string             `bson:"skuId" json:"skuId"`             // XY-0000 หรือ XYZ-0000
-	Code        string             `bson:"code" json:"code"`               // XY-aaaa/AB
-	Name        string             `bson:"name" json:"name"`               // ชื่อสินค้า
-	Description string             `bson:"description" json:"description"` // รายละเอียด
-	Color       string             `bson:"color" json:"color"`             // สี
-	Size        string             `bson:"size" json:"size"`               // ขนาด
-	Category    string             `bson:"category" json:"category"`       // ประเภทสินค้า (สำหรับสร้าง SKU_ID)
-	QRData      string             `bson:"qrData" json:"qrData"`           // ข้อมูล QR
-	ImageURL    *string            `bson:"imageUrl,omitempty" json:"imageUrl,omitempty"`
-	Price       Price              `bson:"price" json:"price"` // ข้อมูลราคา
-	Stock       Stock              `bson:"stock" json:"stock"` // ข้อมูลสต็อก
-	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`
-	UpdatedAt   time.Time          `bson:"updatedAt" json:"updatedAt"`
+	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	SKUID           string             `bson:"skuId" json:"skuId"`                       // XY-0000 หรือ XYZ-0000
+	Code            string             `bson:"code" json:"code"`                         // XY-aaaa/AB
+	Name            string             `bson:"name" json:"name"`                       // ชื่อสินค้า
+	Description     string             `bson:"description" json:"description"`         // รายละเอียด
+	Color           string             `bson:"color" json:"color"`                       // สี
+	Size            string             `bson:"size" json:"size"`                         // ขนาด
+	Category        string             `bson:"category" json:"category"`                // ประเภทสินค้า (สำหรับสร้าง SKU_ID)
+	QRData          string             `bson:"qrData" json:"qrData"`                    // ข้อมูล QR
+	ImageURL        *string            `bson:"imageUrl,omitempty" json:"imageUrl,omitempty"`
+	QuantityPerPack int               `bson:"quantityPerPack" json:"quantityPerPack"`   // จำนวน/ลัง(แพ็ค)
+	Price           Price              `bson:"price" json:"price"`                       // ข้อมูลราคา
+	Stock           Stock              `bson:"stock" json:"stock"`                       // ข้อมูลสต็อก
+	CreatedAt       time.Time          `bson:"createdAt" json:"createdAt"`
+	UpdatedAt       time.Time          `bson:"updatedAt" json:"updatedAt"`
 }
 
 // ProductRequest represents the request body for creating/updating a product
 type ProductRequest struct {
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Color       string  `json:"color"`
-	Size        string  `json:"size"`
-	Category    string  `json:"category"`
-	ImageURL    *string `json:"imageUrl,omitempty"`
-	Price       Price   `json:"price"`
-	Stock       Stock   `json:"stock"`
+	Name            string  `json:"name"`
+	Description     string  `json:"description"`
+	Color           string  `json:"color"`
+	Size            string  `json:"size"`
+	Category        string  `json:"category"`
+	ImageURL        *string `json:"imageUrl,omitempty"`
+	QuantityPerPack int     `json:"quantityPerPack"`
+	Price           Price   `json:"price"`
+	Stock           Stock   `json:"stock"`
 }
 
 // StockUpdateRequest represents the request body for updating stock
@@ -105,16 +112,17 @@ type PriceUpdateRequest struct {
 func (pr *ProductRequest) ToProduct() *Product {
 	now := utils.NowInThailand()
 	return &Product{
-		Name:        pr.Name,
-		Description: pr.Description,
-		Color:       pr.Color,
-		Size:        utils.NormalizeSize(pr.Size), // Normalize size (e.g., "50ml." → "50 mL")
-		Category:    pr.Category,
-		ImageURL:    pr.ImageURL,
-		Price:       pr.Price,
-		Stock:       pr.Stock,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		Name:            pr.Name,
+		Description:     pr.Description,
+		Color:           pr.Color,
+		Size:            utils.NormalizeSize(pr.Size), // Normalize size (e.g., "50ml." → "50 mL")
+		Category:        pr.Category,
+		ImageURL:        pr.ImageURL,
+		QuantityPerPack: pr.QuantityPerPack,
+		Price:           pr.Price,
+		Stock:           pr.Stock,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 }
 
@@ -127,6 +135,7 @@ func (p *Product) UpdateFromRequest(pr *ProductRequest) {
 	p.Category = pr.Category
 	// Update ImageURL (allow null to delete image)
 	p.ImageURL = pr.ImageURL
+	p.QuantityPerPack = pr.QuantityPerPack
 	p.Price = pr.Price
 	p.Stock = pr.Stock
 	p.UpdatedAt = utils.NowInThailand()
@@ -146,10 +155,17 @@ func (p *Product) GetDisplayPrice() float64 {
 }
 
 // UpdatePrice updates price information based on new transaction
-func (p *Product) UpdatePrice(newPrice float64, isVAT bool, isPurchase bool) {
+// quantity: จำนวนสินค้าในรายการนี้ (ใช้สำหรับคำนวณ Weighted Average)
+// ถ้า quantity = 0 จะใช้ค่า default = 1 (สำหรับกรณี manual update)
+func (p *Product) UpdatePrice(newPrice float64, isVAT bool, isPurchase bool, quantity int) {
 	now := utils.NowInThailand()
 	currentYear := now.Year()
 	currentMonth := int(now.Month())
+
+	// ถ้า quantity = 0 ให้ใช้ค่า default = 1 (สำหรับกรณี manual update)
+	if quantity <= 0 {
+		quantity = 1
+	}
 
 	var priceInfo *PriceInfo
 
@@ -181,46 +197,143 @@ func (p *Product) UpdatePrice(newPrice float64, isVAT bool, isPurchase bool) {
 		priceInfo.Max = newPrice
 	}
 
-	// 4. อัปเดต average (เก่า+ใหม่)/2
-	if priceInfo.Average == 0 {
-		priceInfo.Average = newPrice
-	} else {
-		priceInfo.Average = (priceInfo.Average + newPrice) / 2
-	}
-	// ปัดเศษเป็น 2 ตำแหน่ง
-	priceInfo.Average = float64(int(priceInfo.Average*100+0.5)) / 100
+	// 4. อัปเดต Weighted Average (TotalAmount / TotalQuantity)
+	amount := newPrice * float64(quantity)
+	priceInfo.TotalAmount += amount
+	priceInfo.TotalQuantity += quantity
 
-	// 5. อัปเดต YTD
+	if priceInfo.TotalQuantity > 0 {
+		priceInfo.Average = priceInfo.TotalAmount / float64(priceInfo.TotalQuantity)
+		// ปัดเศษเป็น 2 ตำแหน่ง
+		priceInfo.Average = float64(int(priceInfo.Average*100+0.5)) / 100
+	} else {
+		priceInfo.Average = newPrice
+	}
+
+	// 5. อัปเดต YTD (Weighted Average)
 	if priceInfo.YTDYear != currentYear {
 		// ปีใหม่ - รีเซ็ตข้อมูล YTD
 		priceInfo.YTDYear = currentYear
-		priceInfo.YTDCount = 1
-		priceInfo.YTDTotal = newPrice
+		priceInfo.YTDQuantity = quantity
+		priceInfo.YTDTotalAmount = amount
 		priceInfo.AverageYTD = newPrice
 	} else {
 		// ปีเดิม - อัปเดตข้อมูล YTD
-		priceInfo.YTDCount++
-		priceInfo.YTDTotal += newPrice
-		priceInfo.AverageYTD = priceInfo.YTDTotal / float64(priceInfo.YTDCount)
-		// ปัดเศษเป็น 2 ตำแหน่ง
-		priceInfo.AverageYTD = float64(int(priceInfo.AverageYTD*100+0.5)) / 100
+		priceInfo.YTDQuantity += quantity
+		priceInfo.YTDTotalAmount += amount
+
+		if priceInfo.YTDQuantity > 0 {
+			priceInfo.AverageYTD = priceInfo.YTDTotalAmount / float64(priceInfo.YTDQuantity)
+			// ปัดเศษเป็น 2 ตำแหน่ง
+			priceInfo.AverageYTD = float64(int(priceInfo.AverageYTD*100+0.5)) / 100
+		} else {
+			priceInfo.AverageYTD = newPrice
+		}
 	}
 
-	// 6. อัปเดต MTD
+	// 6. อัปเดต MTD (Weighted Average)
 	if priceInfo.MTDYear != currentYear || priceInfo.MTDMonth != currentMonth {
 		// เดือนใหม่ - รีเซ็ตข้อมูล MTD
 		priceInfo.MTDYear = currentYear
 		priceInfo.MTDMonth = currentMonth
-		priceInfo.MTDCount = 1
-		priceInfo.MTDTotal = newPrice
+		priceInfo.MTDQuantity = quantity
+		priceInfo.MTDTotalAmount = amount
 		priceInfo.AverageMTD = newPrice
 	} else {
 		// เดือนเดิม - อัปเดตข้อมูล MTD
-		priceInfo.MTDCount++
-		priceInfo.MTDTotal += newPrice
-		priceInfo.AverageMTD = priceInfo.MTDTotal / float64(priceInfo.MTDCount)
+		priceInfo.MTDQuantity += quantity
+		priceInfo.MTDTotalAmount += amount
+
+		if priceInfo.MTDQuantity > 0 {
+			priceInfo.AverageMTD = priceInfo.MTDTotalAmount / float64(priceInfo.MTDQuantity)
+			// ปัดเศษเป็น 2 ตำแหน่ง
+			priceInfo.AverageMTD = float64(int(priceInfo.AverageMTD*100+0.5)) / 100
+		} else {
+			priceInfo.AverageMTD = newPrice
+		}
+	}
+}
+
+// RollbackPriceUpdate rollback price information when deleting/updating transaction
+// quantity: จำนวนสินค้าที่ต้องการ rollback
+func (p *Product) RollbackPriceUpdate(oldPrice float64, isVAT bool, isPurchase bool, quantity int) {
+	now := utils.NowInThailand()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
+
+	// ถ้า quantity = 0 ไม่ต้อง rollback
+	if quantity <= 0 {
+		return
+	}
+
+	var priceInfo *PriceInfo
+
+	// เลือก PriceInfo ที่จะ rollback
+	if isPurchase {
+		if isVAT {
+			priceInfo = &p.Price.PurchaseVAT
+		} else {
+			priceInfo = &p.Price.PurchaseNonVAT
+		}
+	} else {
+		if isVAT {
+			priceInfo = &p.Price.SaleVAT
+		} else {
+			priceInfo = &p.Price.SaleNonVAT
+		}
+	}
+
+	// Rollback Weighted Average
+	amount := oldPrice * float64(quantity)
+	if priceInfo.TotalAmount >= amount {
+		priceInfo.TotalAmount -= amount
+	}
+	if priceInfo.TotalQuantity >= quantity {
+		priceInfo.TotalQuantity -= quantity
+	}
+
+	if priceInfo.TotalQuantity > 0 {
+		priceInfo.Average = priceInfo.TotalAmount / float64(priceInfo.TotalQuantity)
 		// ปัดเศษเป็น 2 ตำแหน่ง
-		priceInfo.AverageMTD = float64(int(priceInfo.AverageMTD*100+0.5)) / 100
+		priceInfo.Average = float64(int(priceInfo.Average*100+0.5)) / 100
+	} else {
+		priceInfo.Average = 0
+	}
+
+	// Rollback YTD (ถ้าอยู่ในปีเดียวกัน)
+	if priceInfo.YTDYear == currentYear {
+		if priceInfo.YTDTotalAmount >= amount {
+			priceInfo.YTDTotalAmount -= amount
+		}
+		if priceInfo.YTDQuantity >= quantity {
+			priceInfo.YTDQuantity -= quantity
+		}
+
+		if priceInfo.YTDQuantity > 0 {
+			priceInfo.AverageYTD = priceInfo.YTDTotalAmount / float64(priceInfo.YTDQuantity)
+			// ปัดเศษเป็น 2 ตำแหน่ง
+			priceInfo.AverageYTD = float64(int(priceInfo.AverageYTD*100+0.5)) / 100
+		} else {
+			priceInfo.AverageYTD = 0
+		}
+	}
+
+	// Rollback MTD (ถ้าอยู่ในเดือนเดียวกัน)
+	if priceInfo.MTDYear == currentYear && priceInfo.MTDMonth == currentMonth {
+		if priceInfo.MTDTotalAmount >= amount {
+			priceInfo.MTDTotalAmount -= amount
+		}
+		if priceInfo.MTDQuantity >= quantity {
+			priceInfo.MTDQuantity -= quantity
+		}
+
+		if priceInfo.MTDQuantity > 0 {
+			priceInfo.AverageMTD = priceInfo.MTDTotalAmount / float64(priceInfo.MTDQuantity)
+			// ปัดเศษเป็น 2 ตำแหน่ง
+			priceInfo.AverageMTD = float64(int(priceInfo.AverageMTD*100+0.5)) / 100
+		} else {
+			priceInfo.AverageMTD = 0
+		}
 	}
 }
 

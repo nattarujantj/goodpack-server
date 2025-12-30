@@ -208,6 +208,15 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Rollback price updates from old purchase items
+	for _, oldItem := range existingPurchase.Items {
+		product, err := h.productRepo.GetByID(ctx, oldItem.ProductID)
+		if err == nil {
+			product.RollbackPriceUpdate(oldItem.UnitPrice, existingPurchase.IsVAT, true, oldItem.Quantity)
+			h.productRepo.Update(ctx, oldItem.ProductID, product)
+		}
+	}
+
 	// Update purchase
 	existingPurchase.UpdateFromRequest(&purchaseRequest)
 	existingPurchase.SupplierName = supplier.CompanyName
@@ -220,7 +229,7 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Update product prices and stock
+	// Update product prices and stock with new data
 	if err := h.updateProductData(ctx, existingPurchase); err != nil {
 		// Log error but don't fail the purchase update
 		// TODO: Add proper logging
@@ -241,6 +250,19 @@ func (h *PurchaseHandler) DeletePurchase(w http.ResponseWriter, r *http.Request)
 	}
 	id := pathParts[len(pathParts)-1]
 
+	// Get existing purchase to rollback price updates
+	existingPurchase, err := h.purchaseRepo.GetByID(ctx, id)
+	if err == nil {
+		// Rollback price updates from purchase items
+		for _, item := range existingPurchase.Items {
+			product, err := h.productRepo.GetByID(ctx, item.ProductID)
+			if err == nil {
+				product.RollbackPriceUpdate(item.UnitPrice, existingPurchase.IsVAT, true, item.Quantity)
+				h.productRepo.Update(ctx, item.ProductID, product)
+			}
+		}
+	}
+
 	if err := h.purchaseRepo.Delete(ctx, id); err != nil {
 		http.Error(w, "Failed to delete purchase", http.StatusInternalServerError)
 		return
@@ -257,8 +279,8 @@ func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *model
 			continue // Skip if product not found
 		}
 
-		// Update purchase price using new UpdatePrice method
-		product.UpdatePrice(item.UnitPrice, purchase.IsVAT, true) // true = isPurchase
+		// Update purchase price using new UpdatePrice method with quantity
+		product.UpdatePrice(item.UnitPrice, purchase.IsVAT, true, item.Quantity) // true = isPurchase
 
 		// Determine stock type based on VAT status
 		var stockType models.StockType

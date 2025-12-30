@@ -153,8 +153,8 @@ func (h *SaleHandler) CreateSale(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Update sale price using new UpdatePrice method
-		product.UpdatePrice(item.UnitPrice, sale.IsVAT, false) // false = isSale
+		// Update sale price using new UpdatePrice method with quantity
+		product.UpdatePrice(item.UnitPrice, sale.IsVAT, false, item.Quantity) // false = isSale
 
 		// Determine stock type based on VAT status
 		var stockType models.StockType
@@ -237,7 +237,7 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Restore stock for old items using stock management logic
+	// Restore stock and rollback price updates for old items
 	for _, item := range existingSale.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err == nil {
@@ -249,6 +249,8 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 			}
 			// Restore stock by adding back (reverse the reduce operation)
 			ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, item.Quantity)
+			// Rollback price update
+			product.RollbackPriceUpdate(item.UnitPrice, existingSale.IsVAT, false, item.Quantity)
 			h.productRepo.Update(ctx, item.ProductID, product)
 		}
 	}
@@ -256,13 +258,16 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 	// Update sale
 	existingSale.UpdateFromRequest(&saleReq)
 
-	// Cut stock for new items using stock management logic
+	// Cut stock and update price for new items
 	for _, item := range existingSale.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Product not found: %s", item.ProductID), http.StatusBadRequest)
 			return
 		}
+
+		// Update sale price using new UpdatePrice method with quantity
+		product.UpdatePrice(item.UnitPrice, existingSale.IsVAT, false, item.Quantity) // false = isSale
 
 		// Determine stock type based on VAT status
 		var stockType models.StockType
@@ -310,7 +315,7 @@ func (h *SaleHandler) DeleteSale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Restore stock for all items using stock management logic
+	// Restore stock and rollback price updates for all items
 	for _, item := range existingSale.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err == nil {
@@ -322,6 +327,8 @@ func (h *SaleHandler) DeleteSale(w http.ResponseWriter, r *http.Request) {
 			}
 			// Restore stock by adding back (reverse the reduce operation)
 			ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, item.Quantity)
+			// Rollback price update
+			product.RollbackPriceUpdate(item.UnitPrice, existingSale.IsVAT, false, item.Quantity)
 			h.productRepo.Update(ctx, item.ProductID, product)
 		}
 	}
