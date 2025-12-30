@@ -65,6 +65,7 @@ type Quotation struct {
 	Phone             *string            `bson:"phone,omitempty" json:"phone,omitempty"`                         // เบอร์โทรศัพท์
 	Items             []QuotationItem    `bson:"items" json:"items"`                                             // รายการสินค้า
 	IsVAT             bool               `bson:"isVAT" json:"isVAT"`                                             // มี VAT หรือไม่
+	VATType           string             `bson:"vatType" json:"vatType"`                                         // "exclusive" (VAT นอก) or "inclusive" (VAT ใน)
 	ShippingCost      float64            `bson:"shippingCost" json:"shippingCost"`                               // ค่าขนส่ง
 	Notes             *string            `bson:"notes,omitempty" json:"notes,omitempty"`                         // หมายเหตุ
 	ValidUntil        *time.Time         `bson:"validUntil,omitempty" json:"validUntil,omitempty"`               // ราคาใช้ได้ถึง
@@ -84,6 +85,7 @@ type QuotationRequest struct {
 	CustomerID        string          `json:"customerId"`
 	Items             []QuotationItem `json:"items"`
 	IsVAT             bool            `json:"isVAT"`
+	VATType           string          `json:"vatType"` // "exclusive" or "inclusive"
 	ShippingCost      float64         `json:"shippingCost"`
 	Notes             *string         `json:"notes,omitempty"`
 	ValidUntil        *CustomTime     `json:"validUntil,omitempty"`
@@ -102,6 +104,7 @@ func (qr *QuotationRequest) ToQuotation() *Quotation {
 		CustomerID:        qr.CustomerID,
 		Items:             qr.Items,
 		IsVAT:             qr.IsVAT,
+		VATType:           qr.VATType,
 		ShippingCost:      qr.ShippingCost,
 		Notes:             qr.Notes,
 		Status:            qr.Status,

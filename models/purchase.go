@@ -24,6 +24,7 @@ type Purchase struct {
 	Notes         *string            `bson:"notes,omitempty" json:"notes,omitempty"`
 	Items         []PurchaseItem     `bson:"items" json:"items"`
 	IsVAT         bool               `bson:"isVAT" json:"isVAT"`
+	VATType       string             `bson:"vatType" json:"vatType"` // "exclusive" (VAT นอก) or "inclusive" (VAT ใน)
 	ShippingCost  float64            `bson:"shippingCost" json:"shippingCost"`
 	Payment       PaymentInfo        `bson:"payment" json:"payment"`
 	Warehouse     WarehouseInfo      `bson:"warehouse" json:"warehouse"`
@@ -81,6 +82,7 @@ type PurchaseRequest struct {
 	Notes         *string        `json:"notes,omitempty" bson:"notes,omitempty"`
 	Items         []PurchaseItem `json:"items" bson:"items"`
 	IsVAT         bool           `json:"isVAT" bson:"isVAT"`
+	VATType       string         `json:"vatType" bson:"vatType"` // "exclusive" or "inclusive"
 	ShippingCost  float64        `json:"shippingCost" bson:"shippingCost"`
 	Payment       PaymentInfo    `json:"payment" bson:"payment"`
 	Warehouse     WarehouseInfo  `json:"warehouse" bson:"warehouse"`
@@ -118,6 +120,7 @@ func (pr *PurchaseRequest) ToPurchase() *Purchase {
 		Notes:         pr.Notes,
 		Items:         pr.Items,
 		IsVAT:         pr.IsVAT,
+		VATType:       pr.VATType,
 		ShippingCost:  pr.ShippingCost,
 		Payment:       pr.Payment,
 		Warehouse:     pr.Warehouse,
@@ -147,6 +150,7 @@ func (p *Purchase) UpdateFromRequest(pr *PurchaseRequest) {
 	p.Notes = pr.Notes
 	p.Items = pr.Items
 	p.IsVAT = pr.IsVAT
+	p.VATType = pr.VATType
 	p.ShippingCost = pr.ShippingCost
 	p.Payment = pr.Payment
 	p.Warehouse = pr.Warehouse
