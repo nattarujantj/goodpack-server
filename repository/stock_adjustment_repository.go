@@ -27,8 +27,17 @@ func (r *StockAdjustmentRepository) Create(ctx context.Context, adjustment *mode
 	if adjustment.ID.IsZero() {
 		adjustment.ID = primitive.NewObjectID()
 	}
-	_, err := r.collection.InsertOne(ctx, adjustment)
-	return err
+	result, err := r.collection.InsertOne(ctx, adjustment)
+	if err != nil {
+		return err
+	}
+
+	// Update adjustment ID with the inserted ID
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		adjustment.ID = oid
+	}
+
+	return nil
 }
 
 // GetByID gets a stock adjustment by ID

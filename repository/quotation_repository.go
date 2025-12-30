@@ -26,8 +26,17 @@ func (r *QuotationRepository) Create(quotation *models.Quotation) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := r.collection.InsertOne(ctx, quotation)
-	return err
+	result, err := r.collection.InsertOne(ctx, quotation)
+	if err != nil {
+		return err
+	}
+
+	// Update quotation ID with the inserted ID
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		quotation.ID = oid
+	}
+
+	return nil
 }
 
 func (r *QuotationRepository) GetByID(id string) (*models.Quotation, error) {

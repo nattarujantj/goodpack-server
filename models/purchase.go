@@ -27,11 +27,12 @@ type Purchase struct {
 	IsVAT         bool               `bson:"isVAT" json:"isVAT"`
 	VATType       string             `bson:"vatType" json:"vatType"` // "exclusive" (VAT นอก) or "inclusive" (VAT ใน)
 	ShippingCost  float64            `bson:"shippingCost" json:"shippingCost"`
-	Payment       PaymentInfo        `bson:"payment" json:"payment"`
-	Warehouse     WarehouseInfo      `bson:"warehouse" json:"warehouse"`
-	TotalAmount   float64            `bson:"totalAmount" json:"totalAmount"`
-	TotalVAT      float64            `bson:"totalVAT" json:"totalVAT"`
-	GrandTotal    float64            `bson:"grandTotal" json:"grandTotal"`
+	Payment          PaymentInfo        `bson:"payment" json:"payment"`
+	Warehouse        WarehouseInfo      `bson:"warehouse" json:"warehouse"`
+	PurchaseOrderCode *string            `bson:"purchaseOrderCode,omitempty" json:"purchaseOrderCode,omitempty"`
+	TotalAmount      float64            `bson:"totalAmount" json:"totalAmount"`
+	TotalVAT         float64            `bson:"totalVAT" json:"totalVAT"`
+	GrandTotal       float64            `bson:"grandTotal" json:"grandTotal"`
 }
 
 type PurchaseItem struct {
@@ -79,16 +80,17 @@ type WarehouseItem struct {
 }
 
 type PurchaseRequest struct {
-	PurchaseDate  time.Time      `json:"purchaseDate" bson:"purchaseDate"`
-	SupplierID    string         `json:"supplierId" bson:"supplierId"`
-	InvoiceNumber *string        `json:"invoiceNumber,omitempty" bson:"invoiceNumber,omitempty"`
-	Notes         *string        `json:"notes,omitempty" bson:"notes,omitempty"`
-	Items         []PurchaseItem `json:"items" bson:"items"`
-	IsVAT         bool           `json:"isVAT" bson:"isVAT"`
-	VATType       string         `json:"vatType" bson:"vatType"` // "exclusive" or "inclusive"
-	ShippingCost  float64        `json:"shippingCost" bson:"shippingCost"`
-	Payment       PaymentInfo    `json:"payment" bson:"payment"`
-	Warehouse     WarehouseInfo  `json:"warehouse" bson:"warehouse"`
+	PurchaseDate     time.Time      `json:"purchaseDate" bson:"purchaseDate"`
+	SupplierID       string         `json:"supplierId" bson:"supplierId"`
+	InvoiceNumber    *string        `json:"invoiceNumber,omitempty" bson:"invoiceNumber,omitempty"`
+	Notes            *string        `json:"notes,omitempty" bson:"notes,omitempty"`
+	Items            []PurchaseItem `json:"items" bson:"items"`
+	IsVAT            bool           `json:"isVAT" bson:"isVAT"`
+	VATType          string         `json:"vatType" bson:"vatType"` // "exclusive" or "inclusive"
+	ShippingCost     float64        `json:"shippingCost" bson:"shippingCost"`
+	Payment          PaymentInfo    `json:"payment" bson:"payment"`
+	Warehouse        WarehouseInfo  `json:"warehouse" bson:"warehouse"`
+	PurchaseOrderCode *string       `json:"purchaseOrderCode,omitempty" bson:"purchaseOrderCode,omitempty"`
 }
 
 func (pr *PurchaseRequest) ToPurchase() *Purchase {
@@ -136,11 +138,12 @@ func (pr *PurchaseRequest) ToPurchase() *Purchase {
 		IsVAT:         pr.IsVAT,
 		VATType:       pr.VATType,
 		ShippingCost:  pr.ShippingCost,
-		Payment:       pr.Payment,
-		Warehouse:     pr.Warehouse,
-		TotalAmount:   totalAmount,
-		TotalVAT:      totalVAT,
-		GrandTotal:    grandTotal,
+		Payment:          pr.Payment,
+		Warehouse:        pr.Warehouse,
+		PurchaseOrderCode: pr.PurchaseOrderCode,
+		TotalAmount:      totalAmount,
+		TotalVAT:         totalVAT,
+		GrandTotal:       grandTotal,
 	}
 }
 
@@ -177,6 +180,7 @@ func (p *Purchase) UpdateFromRequest(pr *PurchaseRequest) {
 	p.ShippingCost = pr.ShippingCost
 	p.Payment = pr.Payment
 	p.Warehouse = pr.Warehouse
+	p.PurchaseOrderCode = pr.PurchaseOrderCode
 	p.TotalAmount = totalAmount
 	p.TotalVAT = totalVAT
 	p.GrandTotal = grandTotal

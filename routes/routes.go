@@ -12,7 +12,7 @@ import (
 	"goodpack-server/utils"
 )
 
-func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) http.Handler {
+func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, purchaseOrderRepo *repository.PurchaseOrderRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) http.Handler {
 	router := mux.NewRouter()
 
 	// Initialize handlers test2
@@ -22,6 +22,7 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, supplierRepo, productRepo, stockAdjustmentRepo)
 	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo, stockAdjustmentRepo)
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
+	purchaseOrderHandler := handlers.NewPurchaseOrderHandler(purchaseOrderRepo, supplierRepo, productRepo)
 	migrationHandler := handlers.NewMigrationHandler(customerRepo, productRepo, purchaseRepo, saleRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
 	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo)
@@ -91,6 +92,15 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/quotations/{id}", quotationHandler.DeleteQuotation).Methods("DELETE")
 	api.HandleFunc("/quotations/{id}/copy-to-sale", quotationHandler.CopyToSale).Methods("GET")
 	api.HandleFunc("/quotations/{id}/status", quotationHandler.UpdateQuotationStatus).Methods("PATCH")
+
+	// Purchase Order routes
+	api.HandleFunc("/purchase-orders", purchaseOrderHandler.GetAllPurchaseOrders).Methods("GET")
+	api.HandleFunc("/purchase-orders", purchaseOrderHandler.CreatePurchaseOrder).Methods("POST")
+	api.HandleFunc("/purchase-orders/{id}", purchaseOrderHandler.GetPurchaseOrder).Methods("GET")
+	api.HandleFunc("/purchase-orders/{id}", purchaseOrderHandler.UpdatePurchaseOrder).Methods("PUT")
+	api.HandleFunc("/purchase-orders/{id}", purchaseOrderHandler.DeletePurchaseOrder).Methods("DELETE")
+	api.HandleFunc("/purchase-orders/{id}/copy-to-purchase", purchaseOrderHandler.CopyToPurchase).Methods("GET")
+	api.HandleFunc("/purchase-orders/{id}/status", purchaseOrderHandler.UpdatePurchaseOrderStatus).Methods("PATCH")
 
 	// Migration routes
 	api.HandleFunc("/migration/customers/csv", migrationHandler.MigrateCustomersFromCSV).Methods("POST")

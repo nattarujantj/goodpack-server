@@ -34,8 +34,17 @@ func (r *SupplierRepository) Create(supplier *models.Supplier) error {
 	}
 	supplier.SupplierCode = supplierCode
 
-	_, err = r.collection.InsertOne(ctx, supplier)
-	return err
+	result, err := r.collection.InsertOne(ctx, supplier)
+	if err != nil {
+		return err
+	}
+
+	// Update supplier ID with the inserted ID
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		supplier.ID = oid
+	}
+
+	return nil
 }
 
 func (r *SupplierRepository) GetByID(id string) (*models.Supplier, error) {

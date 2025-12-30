@@ -28,10 +28,11 @@ func main() {
 	purchaseRepo := repository.NewPurchaseRepository(mongoDB.GetCollection("purchases"))
 	saleRepo := repository.NewSaleRepository(mongoDB.GetCollection("sales"))
 	quotationRepo := repository.NewQuotationRepository(mongoDB.GetCollection("quotations"))
+	purchaseOrderRepo := repository.NewPurchaseOrderRepository(mongoDB.GetCollection("purchase_orders"))
 	stockAdjustmentRepo := repository.NewStockAdjustmentRepository(mongoDB.GetCollection("stock_adjustments"))
 
 	// Setup routes
-	router := routes.SetupRoutes(productRepo, customerRepo, supplierRepo, purchaseRepo, saleRepo, quotationRepo, stockAdjustmentRepo)
+	router := routes.SetupRoutes(productRepo, customerRepo, supplierRepo, purchaseRepo, saleRepo, quotationRepo, purchaseOrderRepo, stockAdjustmentRepo)
 
 	// Start server
 	log.Printf("🚀 Server starting on port :%s", cfg.Port)

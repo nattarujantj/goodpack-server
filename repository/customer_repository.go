@@ -34,8 +34,17 @@ func (r *CustomerRepository) Create(customer *models.Customer) error {
 	}
 	customer.CustomerCode = customerCode
 
-	_, err = r.collection.InsertOne(ctx, customer)
-	return err
+	result, err := r.collection.InsertOne(ctx, customer)
+	if err != nil {
+		return err
+	}
+
+	// Update customer ID with the inserted ID
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		customer.ID = oid
+	}
+
+	return nil
 }
 
 func (r *CustomerRepository) GetByID(id string) (*models.Customer, error) {

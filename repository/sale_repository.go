@@ -25,8 +25,17 @@ func NewSaleRepository(collection *mongo.Collection) *SaleRepository {
 
 func (r *SaleRepository) Create(sale *models.Sale) error {
 	ctx := context.Background()
-	_, err := r.collection.InsertOne(ctx, sale)
-	return err
+	result, err := r.collection.InsertOne(ctx, sale)
+	if err != nil {
+		return err
+	}
+
+	// Update sale ID with the inserted ID
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		sale.ID = oid
+	}
+
+	return nil
 }
 
 func (r *SaleRepository) GetByID(id string) (*models.Sale, error) {

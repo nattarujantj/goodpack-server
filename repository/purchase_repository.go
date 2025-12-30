@@ -23,8 +23,17 @@ func NewPurchaseRepository(collection *mongo.Collection) *PurchaseRepository {
 }
 
 func (r *PurchaseRepository) Create(ctx context.Context, purchase *models.Purchase) error {
-	_, err := r.collection.InsertOne(ctx, purchase)
-	return err
+	result, err := r.collection.InsertOne(ctx, purchase)
+	if err != nil {
+		return err
+	}
+
+	// Update purchase ID with the inserted ID
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		purchase.ID = oid
+	}
+
+	return nil
 }
 
 func (r *PurchaseRepository) GetByID(ctx context.Context, id string) (*models.Purchase, error) {
