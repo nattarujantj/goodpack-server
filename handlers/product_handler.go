@@ -17,6 +17,11 @@ import (
 	"goodpack-server/utils"
 )
 
+// setJSONContentType sets Content-Type header with UTF-8 charset for JSON responses
+func setJSONContentType(w http.ResponseWriter) {
+	setJSONContentType(w)
+}
+
 type ProductHandler struct {
 	repo         *repository.ProductRepository
 	configLoader *config.ConfigLoader
@@ -36,7 +41,7 @@ func NewProductHandler(repo *repository.ProductRepository) *ProductHandler {
 }
 
 func (h *ProductHandler) GetProducts(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	products, err := h.repo.GetAll(r.Context())
 	if err != nil {
@@ -48,7 +53,7 @@ func (h *ProductHandler) GetProducts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) GetProduct(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -68,7 +73,7 @@ func (h *ProductHandler) GetProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	var productReq models.ProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&productReq); err != nil {
@@ -87,7 +92,7 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -132,7 +137,7 @@ func (h *ProductHandler) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) UpdateStock(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -159,7 +164,7 @@ func (h *ProductHandler) UpdateStock(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	categories, err := h.repo.GetCategories(r.Context())
 	if err != nil {
@@ -171,7 +176,7 @@ func (h *ProductHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) UpdatePrice(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -198,7 +203,7 @@ func (h *ProductHandler) UpdatePrice(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) GetByCategory(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	vars := mux.Vars(r)
 	category := vars["category"]
@@ -213,7 +218,7 @@ func (h *ProductHandler) GetByCategory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProductHandler) GetLowStockProducts(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	// Get threshold from query parameter (default: 10)
 	threshold := 10
@@ -233,7 +238,7 @@ func (h *ProductHandler) GetLowStockProducts(w http.ResponseWriter, r *http.Requ
 
 // GetConfigCategories returns all categories from config
 func (h *ProductHandler) GetConfigCategories(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	categories := h.configLoader.GetCategories()
 	json.NewEncoder(w).Encode(categories)
@@ -241,7 +246,7 @@ func (h *ProductHandler) GetConfigCategories(w http.ResponseWriter, r *http.Requ
 
 // GetConfigColors returns all colors from config
 func (h *ProductHandler) GetConfigColors(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	colors := h.configLoader.GetColors()
 	json.NewEncoder(w).Encode(colors)
@@ -249,7 +254,7 @@ func (h *ProductHandler) GetConfigColors(w http.ResponseWriter, r *http.Request)
 
 // GetConfigAccounts returns all active accounts from config
 func (h *ProductHandler) GetConfigAccounts(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	accounts := h.configLoader.GetActiveAccounts()
 	json.NewEncoder(w).Encode(accounts)
@@ -394,7 +399,7 @@ func (h *ProductHandler) UploadProductImage(w http.ResponseWriter, r *http.Reque
 		"imageUrl": imageURL,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -438,7 +443,7 @@ func (h *ProductHandler) ServeProductImage(w http.ResponseWriter, r *http.Reques
 
 // DeleteProductImage deletes a product image
 func (h *ProductHandler) DeleteProductImage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	setJSONContentType(w)
 
 	vars := mux.Vars(r)
 	productId := vars["id"]
