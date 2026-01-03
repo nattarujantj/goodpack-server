@@ -65,8 +65,10 @@ func (sg *SKUGenerator) getColorAbbreviation(color string) string {
 
 // ParseSKUID extracts category and number from SKU ID
 func (sg *SKUGenerator) ParseSKUID(skuID string) (category string, number int, err error) {
-	// Regex pattern for SKU ID: XY-0000 or XYZ-0000
-	pattern := `^([A-Z]{2,3})-(\d{4})$`
+	// Regex pattern for SKU ID: supports various abbreviation formats
+	// Examples: GL-0001, BT-CHEM-0001, SH-0001
+	// Pattern: one or more uppercase letters/hyphens, followed by hyphen and 4 digits
+	pattern := `^([A-Z]+(?:-[A-Z]+)*)-(\d{4})$`
 	regex := regexp.MustCompile(pattern)
 
 	matches := regex.FindStringSubmatch(skuID)
