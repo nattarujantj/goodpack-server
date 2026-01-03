@@ -15,6 +15,8 @@ import (
 	"goodpack-server/utils"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 )
 
 type ImportHandler struct {
@@ -48,8 +50,11 @@ func (h *ImportHandler) ImportCustomers(w http.ResponseWriter, r *http.Request) 
 	}
 	defer file.Close()
 
+	// Convert to UTF-8 reader for proper Thai character support
+	utf8Reader := transform.NewReader(file, unicode.UTF8BOM.NewDecoder())
+
 	// Read CSV
-	reader := csv.NewReader(file)
+	reader := csv.NewReader(utf8Reader)
 	
 	// Read header
 	header, err := reader.Read()
@@ -172,8 +177,11 @@ func (h *ImportHandler) ImportProducts(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	// Convert to UTF-8 reader for proper Thai character support
+	utf8Reader := transform.NewReader(file, unicode.UTF8BOM.NewDecoder())
+
 	// Read CSV
-	reader := csv.NewReader(file)
+	reader := csv.NewReader(utf8Reader)
 
 	// Read header
 	header, err := reader.Read()
