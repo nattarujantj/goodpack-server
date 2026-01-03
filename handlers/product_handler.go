@@ -19,7 +19,7 @@ import (
 
 // setJSONContentType sets Content-Type header with UTF-8 charset for JSON responses
 func setJSONContentType(w http.ResponseWriter) {
-	setJSONContentType(w)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 }
 
 type ProductHandler struct {
