@@ -86,13 +86,18 @@
       "english": "glass bottle"
     },
     {
-      "name": "ขวดโฟมมูส",
+      "name": "ขวดน้ำปาก30",
+      "abbreviation": "BT-WT",
+      "english": "water bottle"
+    },
+    {
+      "name": "ขวดปั๊มโฟมมูส",
       "abbreviation": "BT-FM",
       "english": "foam bottle"
     },
     {
-      "name": "ขวดสูญญากาศ",
-      "abbreviation": "BT",
+      "name": "ขวดปั๊มสูญญากาศ",
+      "abbreviation": "BT-VAC",
       "english": "vacuum bottle"
     },
     {
