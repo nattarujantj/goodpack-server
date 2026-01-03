@@ -101,6 +101,16 @@
       "english": "vacuum bottle"
     },
     {
+      "name": "ขวด-HDPE",
+      "abbreviation": "BT-HDPE",
+      "english": "HDPE bottle"
+    },
+    {
+      "name": "ขวด-PET",
+      "abbreviation": "BT-PET",
+      "english": "PET bottle"
+    },
+    {
       "name": "แกลลอน",
       "abbreviation": "GL",
       "english": "gallon"
