@@ -11,6 +11,16 @@
       "english": "cap"
     },
     {
+      "name": "ฝาปิดบอร์ซีล",
+      "abbreviation": "CP-BS",
+      "english": "bore seal cap"
+    },
+    {
+      "name": "ฝาปิดแกสเก็ต",
+      "abbreviation": "CP-GK",
+      "english": "gasket cap"
+    },
+    {
       "name": "ฝาเพรส",
       "abbreviation": "PRS",
       "english": "press cap"
@@ -36,6 +46,11 @@
       "english": "sauce cap"
     },
     {
+      "name": "ฝาแหลม nozzle",
+      "abbreviation": "CP-NZ",
+      "english": "nozzle cap"
+    },
+    {
       "name": "ฝาหวีทอง",
       "abbreviation": "CP-E",
       "english": "wee tong cap"
@@ -46,6 +61,11 @@
       "english": "pump"
     },
     {
+      "name": "ปั๊มหยด",
+      "abbreviation": "PM-DP",
+      "english": "dropper pump"
+    },
+    {
       "name": "ปั๊มโฟมมูส",
       "abbreviation": "PM-FM",
       "english": "foam pump"
@@ -54,6 +74,11 @@
       "name": "ฟ็อกกี้",
       "abbreviation": "FG",
       "english": "foggy"
+    },
+    {
+      "name": "ฟ็อกกี้โฟม",
+      "abbreviation": "FG-FM",
+      "english": "foggy foam"
     },
     {
       "name": "สเปรย์",

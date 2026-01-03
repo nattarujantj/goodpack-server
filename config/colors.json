@@ -26,6 +26,16 @@
       "english": "black"
     },
     {
+      "name": "ดำด้าน",
+      "abbreviation": "BK-MATTE",
+      "english": "matte black"
+    },
+    {
+      "name": "ดำแวว",
+      "abbreviation": "BK-SNY",
+      "english": "shiny black"
+    },
+    {
       "name": "ขาว",
       "abbreviation": "WH",
       "english": "white"
@@ -109,6 +119,16 @@
       "name": "ชาใส",
       "abbreviation": "CLBR",
       "english": "clear brown"
+    },
+    {
+      "name": "เขียวใส",
+      "abbreviation": "CLGR",
+      "english": "clear green"
+    },
+    {
+      "name": "ชมพูใส",
+      "abbreviation": "CLPK",
+      "english": "clear pink"
     },
     {
       "name": "ขุ่นใส",
