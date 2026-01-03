@@ -15,8 +15,6 @@ import (
 	"goodpack-server/utils"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 )
 
 type ImportHandler struct {
@@ -50,11 +48,22 @@ func (h *ImportHandler) ImportCustomers(w http.ResponseWriter, r *http.Request) 
 	}
 	defer file.Close()
 
-	// Convert to UTF-8 reader for proper Thai character support
-	utf8Reader := transform.NewReader(file, unicode.UTF8BOM.NewDecoder())
+	// Read file content and convert encoding to UTF-8
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	// Read CSV
-	reader := csv.NewReader(utf8Reader)
+	// Try to detect and convert encoding to UTF-8
+	utf8Bytes, err := utils.ConvertToUTF8(fileBytes)
+	if err != nil {
+		http.Error(w, "Failed to convert encoding: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Read CSV from UTF-8 bytes
+	reader := csv.NewReader(bytes.NewReader(utf8Bytes))
 	
 	// Read header
 	header, err := reader.Read()
@@ -177,11 +186,22 @@ func (h *ImportHandler) ImportProducts(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Convert to UTF-8 reader for proper Thai character support
-	utf8Reader := transform.NewReader(file, unicode.UTF8BOM.NewDecoder())
+	// Read file content and convert encoding to UTF-8
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	// Read CSV
-	reader := csv.NewReader(utf8Reader)
+	// Try to detect and convert encoding to UTF-8
+	utf8Bytes, err := utils.ConvertToUTF8(fileBytes)
+	if err != nil {
+		http.Error(w, "Failed to convert encoding: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Read CSV from UTF-8 bytes
+	reader := csv.NewReader(bytes.NewReader(utf8Bytes))
 
 	// Read header
 	header, err := reader.Read()

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -14,9 +15,6 @@ import (
 	"goodpack-server/models"
 	"goodpack-server/repository"
 	"goodpack-server/utils"
-
-	"golang.org/x/text/encoding/unicode"
-	"golang.org/x/text/transform"
 )
 
 type MigrationHandler struct {
@@ -120,11 +118,22 @@ func (h *MigrationHandler) MigrateCustomersFromCSV(w http.ResponseWriter, r *htt
 	}
 	defer file.Close()
 
-	// Convert to UTF-8 reader for proper Thai character support
-	utf8Reader := transform.NewReader(file, unicode.UTF8BOM.NewDecoder())
+	// Read file content and convert encoding to UTF-8
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Try to detect and convert encoding to UTF-8
+	utf8Bytes, err := utils.ConvertToUTF8(fileBytes)
+	if err != nil {
+		http.Error(w, "Failed to convert encoding: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Parse CSV
-	result, err := h.parseAndMigrateCustomerCSV(utf8Reader)
+	result, err := h.parseAndMigrateCustomerCSV(bytes.NewReader(utf8Bytes))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to process CSV: %v", err), http.StatusInternalServerError)
 		return
@@ -316,11 +325,22 @@ func (h *MigrationHandler) MigrateProductsFromCSV(w http.ResponseWriter, r *http
 	}
 	defer file.Close()
 
-	// Convert to UTF-8 reader for proper Thai character support
-	utf8Reader := transform.NewReader(file, unicode.UTF8BOM.NewDecoder())
+	// Read file content and convert encoding to UTF-8
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Try to detect and convert encoding to UTF-8
+	utf8Bytes, err := utils.ConvertToUTF8(fileBytes)
+	if err != nil {
+		http.Error(w, "Failed to convert encoding: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Parse CSV
-	result, err := h.parseAndMigrateProductCSV(utf8Reader)
+	result, err := h.parseAndMigrateProductCSV(bytes.NewReader(utf8Bytes))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to process CSV: %v", err), http.StatusInternalServerError)
 		return
@@ -637,11 +657,22 @@ func (h *MigrationHandler) MigratePurchasesFromCSV(w http.ResponseWriter, r *htt
 	}
 	defer file.Close()
 
-	// Convert to UTF-8 reader for proper Thai character support
-	utf8Reader := transform.NewReader(file, unicode.UTF8BOM.NewDecoder())
+	// Read file content and convert encoding to UTF-8
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Try to detect and convert encoding to UTF-8
+	utf8Bytes, err := utils.ConvertToUTF8(fileBytes)
+	if err != nil {
+		http.Error(w, "Failed to convert encoding: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Parse CSV
-	result, err := h.parseAndMigratePurchaseCSV(utf8Reader)
+	result, err := h.parseAndMigratePurchaseCSV(bytes.NewReader(utf8Bytes))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to process CSV: %v", err), http.StatusInternalServerError)
 		return
@@ -993,11 +1024,22 @@ func (h *MigrationHandler) MigrateSalesFromCSV(w http.ResponseWriter, r *http.Re
 	}
 	defer file.Close()
 
-	// Convert to UTF-8 reader for proper Thai character support
-	utf8Reader := transform.NewReader(file, unicode.UTF8BOM.NewDecoder())
+	// Read file content and convert encoding to UTF-8
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Try to detect and convert encoding to UTF-8
+	utf8Bytes, err := utils.ConvertToUTF8(fileBytes)
+	if err != nil {
+		http.Error(w, "Failed to convert encoding: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Parse CSV
-	result, err := h.parseAndMigrateSaleCSV(utf8Reader)
+	result, err := h.parseAndMigrateSaleCSV(bytes.NewReader(utf8Bytes))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to process CSV: %v", err), http.StatusInternalServerError)
 		return
