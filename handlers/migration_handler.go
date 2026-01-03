@@ -539,46 +539,85 @@ func (h *MigrationHandler) parseProductStock(record []string, headerMap map[stri
 	}
 
 	// Parse VAT stock
-	if stockVAT := h.getFieldValue(record, headerMap, "stockvat"); stockVAT != "" {
-		if val, err := h.parseInt(stockVAT); err == nil {
+	stockVATRaw := h.getFieldValue(record, headerMap, "stockvat")
+	if stockVATRaw != "" {
+		if val, err := h.parseInt(stockVATRaw); err == nil {
 			stock.VAT.Remaining = val
+			stock.VAT.InitialStock = val // Also set initial stock for migration
+		} else {
+			fmt.Printf("WARNING: Failed to parse stockVAT '%s': %v\n", stockVATRaw, err)
 		}
 	}
 
 	// Parse Non-VAT stock
-	if stockNonVAT := h.getFieldValue(record, headerMap, "stocknonvat"); stockNonVAT != "" {
-		if val, err := h.parseInt(stockNonVAT); err == nil {
+	stockNonVATRaw := h.getFieldValue(record, headerMap, "stocknonvat")
+	if stockNonVATRaw != "" {
+		if val, err := h.parseInt(stockNonVATRaw); err == nil {
 			stock.NonVAT.Remaining = val
+			stock.NonVAT.InitialStock = val // Also set initial stock for migration
+		} else {
+			fmt.Printf("WARNING: Failed to parse stockNonVAT '%s': %v\n", stockNonVATRaw, err)
 		}
 	}
 
 	// Parse actual stock
-	if actualStock := h.getFieldValue(record, headerMap, "actualstock"); actualStock != "" {
-		if val, err := h.parseInt(actualStock); err == nil {
+	actualStockRaw := h.getFieldValue(record, headerMap, "actualstock")
+	if actualStockRaw != "" {
+		if val, err := h.parseInt(actualStockRaw); err == nil {
 			stock.ActualStock = val
+			stock.ActualStockInitial = val // Also set initial stock for migration
+		} else {
+			fmt.Printf("WARNING: Failed to parse actualStock '%s': %v\n", actualStockRaw, err)
 		}
 	} else {
 		// If actual stock not provided, calculate from VAT + Non-VAT
 		stock.ActualStock = stock.VAT.Remaining + stock.NonVAT.Remaining
+		stock.ActualStockInitial = stock.ActualStock
 	}
 
 	return stock
 }
 
 // parseFloat parses string to float64
+// Supports: "100.5", "1,000.50" (with comma separators)
 func (h *MigrationHandler) parseFloat(s string) (float64, error) {
 	if s == "" {
 		return 0, nil
 	}
-	return strconv.ParseFloat(strings.TrimSpace(s), 64)
+	
+	// Trim whitespace
+	s = strings.TrimSpace(s)
+	
+	// Remove commas (e.g., "1,000.50" -> "1000.50")
+	s = strings.ReplaceAll(s, ",", "")
+	
+	return strconv.ParseFloat(s, 64)
 }
 
 // parseInt parses string to int
+// Supports: "100", "1,000", "100.5" (will be truncated to 100)
 func (h *MigrationHandler) parseInt(s string) (int, error) {
 	if s == "" {
 		return 0, nil
 	}
-	return strconv.Atoi(strings.TrimSpace(s))
+	
+	// Trim whitespace
+	s = strings.TrimSpace(s)
+	
+	// Remove commas (e.g., "1,000" -> "1000")
+	s = strings.ReplaceAll(s, ",", "")
+	
+	// Try parsing as int first
+	if val, err := strconv.Atoi(s); err == nil {
+		return val, nil
+	}
+	
+	// Try parsing as float and convert to int (for values like "100.5")
+	if floatVal, err := strconv.ParseFloat(s, 64); err == nil {
+		return int(floatVal), nil
+	}
+	
+	return 0, fmt.Errorf("cannot parse '%s' as integer", s)
 }
 
 // GetProductCSVTemplate returns a CSV template for product data
