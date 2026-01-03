@@ -86,6 +86,11 @@
       "english": "spray mist"
     },
     {
+      "name": "สเปรย์ปากยาว",
+      "abbreviation": "SPM-L",
+      "english": "long mouth spray"
+    },
+    {
       "name": "โม",
       "abbreviation": "MOL",
       "english": "mol"
@@ -169,6 +174,31 @@
       "name": "ท่อ",
       "abbreviation": "TUBE",
       "english": "tube"
+    },
+    {
+      "name": "หลอดโฟม",
+      "abbreviation": "FOAM-TB",
+      "english": "foam tube"
+    },
+    {
+      "name": "แผ่นโฟม",
+      "abbreviation": "GSK",
+      "english": "gasket"
+    },
+    {
+      "name": "จุกตันใน",
+      "abbreviation": "INN",
+      "english": "inner plug"
+    },
+    {
+      "name": "หลอดลิป",
+      "abbreviation": "LIPS",
+      "english": "lipstick tube"
+    },
+    {
+      "name": "หลอดเม็ดฟู่",
+      "abbreviation": "TAB-TUBE",
+      "english": "tablet tube"
     }
   ]
 }
