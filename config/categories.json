@@ -81,6 +81,11 @@
       "english": "chemical bottle"
     },
     {
+      "name": "ขวดแก้ว",
+      "abbreviation": "BT-GLS",
+      "english": "glass bottle"
+    },
+    {
       "name": "ขวดโฟมมูส",
       "abbreviation": "BT-FM",
       "english": "foam bottle"
