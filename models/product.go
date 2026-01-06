@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"goodpack-server/utils"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // PriceInfo represents price information for VAT and Non-VAT
@@ -22,14 +23,14 @@ type PriceInfo struct {
 	TotalAmount   float64 `bson:"totalAmount" json:"totalAmount"`     // มูลค่ารวม (ราคา × จำนวน)
 
 	// สำหรับคำนวณ Weighted Average YTD
-	YTDYear        int     `bson:"ytdYear" json:"ytdYear"`         // ปีที่เก็บข้อมูล YTD
-	YTDQuantity    int     `bson:"ytdQuantity" json:"ytdQuantity"`     // จำนวนสินค้าในปีนี้
+	YTDYear        int     `bson:"ytdYear" json:"ytdYear"`               // ปีที่เก็บข้อมูล YTD
+	YTDQuantity    int     `bson:"ytdQuantity" json:"ytdQuantity"`       // จำนวนสินค้าในปีนี้
 	YTDTotalAmount float64 `bson:"ytdTotalAmount" json:"ytdTotalAmount"` // มูลค่ารวมในปีนี้ (ราคา × จำนวน)
 
 	// สำหรับคำนวณ Weighted Average MTD
-	MTDMonth       int     `bson:"mtdMonth" json:"mtdMonth"`       // เดือนที่เก็บข้อมูล MTD
-	MTDYear        int     `bson:"mtdYear" json:"mtdYear"`         // ปีที่เก็บข้อมูล MTD
-	MTDQuantity    int     `bson:"mtdQuantity" json:"mtdQuantity"`     // จำนวนสินค้าในเดือนนี้
+	MTDMonth       int     `bson:"mtdMonth" json:"mtdMonth"`             // เดือนที่เก็บข้อมูล MTD
+	MTDYear        int     `bson:"mtdYear" json:"mtdYear"`               // ปีที่เก็บข้อมูล MTD
+	MTDQuantity    int     `bson:"mtdQuantity" json:"mtdQuantity"`       // จำนวนสินค้าในเดือนนี้
 	MTDTotalAmount float64 `bson:"mtdTotalAmount" json:"mtdTotalAmount"` // มูลค่ารวมในเดือนนี้ (ราคา × จำนวน)
 }
 
@@ -60,27 +61,27 @@ type StockInfo struct {
 
 // Stock represents all stock information
 type Stock struct {
-	VAT                StockInfo `bson:"vat" json:"vat"`                                   // สต็อก VAT
-	NonVAT             StockInfo `bson:"nonVAT" json:"nonVAT"`                             // สต็อก Non-VAT
-	ActualStockInitial int       `bson:"actualStockInitial" json:"actualStockInitial"`    // ยกยอด ActualStock
-	ActualStock        int       `bson:"actualStock" json:"actualStock"`                  // สินค้าคงเหลือจริง
+	VAT                StockInfo `bson:"vat" json:"vat"`                               // สต็อก VAT
+	NonVAT             StockInfo `bson:"nonVAT" json:"nonVAT"`                         // สต็อก Non-VAT
+	ActualStockInitial int       `bson:"actualStockInitial" json:"actualStockInitial"` // ยกยอด ActualStock
+	ActualStock        int       `bson:"actualStock" json:"actualStock"`               // สินค้าคงเหลือจริง
 }
 
 // Product represents a product in the inventory
 type Product struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	SKUID           string             `bson:"skuId" json:"skuId"`                       // XY-0000 หรือ XYZ-0000
-	Code            string             `bson:"code" json:"code"`                         // XY-aaaa/AB
-	Name            string             `bson:"name" json:"name"`                       // ชื่อสินค้า
-	Description     string             `bson:"description" json:"description"`         // รายละเอียด
-	Color           string             `bson:"color" json:"color"`                       // สี
-	Size            string             `bson:"size" json:"size"`                         // ขนาด
-	Category        string             `bson:"category" json:"category"`                // ประเภทสินค้า (สำหรับสร้าง SKU_ID)
-	QRData          string             `bson:"qrData" json:"qrData"`                    // ข้อมูล QR
+	SKUID           string             `bson:"skuId" json:"skuId"`             // XY-0000 หรือ XYZ-0000
+	Code            string             `bson:"code" json:"code"`               // XY-aaaa/AB
+	Name            string             `bson:"name" json:"name"`               // ชื่อสินค้า
+	Description     string             `bson:"description" json:"description"` // รายละเอียด
+	Color           string             `bson:"color" json:"color"`             // สี
+	Size            string             `bson:"size" json:"size"`               // ขนาด
+	Category        string             `bson:"category" json:"category"`       // ประเภทสินค้า (สำหรับสร้าง SKU_ID)
+	QRData          string             `bson:"qrData" json:"qrData"`           // ข้อมูล QR
 	ImageURL        *string            `bson:"imageUrl,omitempty" json:"imageUrl,omitempty"`
-	QuantityPerPack int               `bson:"quantityPerPack" json:"quantityPerPack"`   // จำนวน/ลัง(แพ็ค)
-	Price           Price              `bson:"price" json:"price"`                       // ข้อมูลราคา
-	Stock           Stock              `bson:"stock" json:"stock"`                       // ข้อมูลสต็อก
+	QuantityPerPack int                `bson:"quantityPerPack" json:"quantityPerPack"` // จำนวน/ลัง(แพ็ค)
+	Price           Price              `bson:"price" json:"price"`                     // ข้อมูลราคา
+	Stock           Stock              `bson:"stock" json:"stock"`                     // ข้อมูลสต็อก
 	CreatedAt       time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt       time.Time          `bson:"updatedAt" json:"updatedAt"`
 }
@@ -127,17 +128,25 @@ func (pr *ProductRequest) ToProduct() *Product {
 }
 
 // UpdateFromRequest updates Product from ProductRequest
+// Note: ไม่อัพเดท Price และ Stock เพราะค่าเหล่านี้ควรถูกอัพเดทจากระบบ purchase/sale โดยเฉพาะ
 func (p *Product) UpdateFromRequest(pr *ProductRequest) {
 	p.Name = pr.Name
 	p.Description = pr.Description
 	p.Color = pr.Color
 	p.Size = utils.NormalizeSize(pr.Size) // Normalize size (e.g., "50ml." → "50 mL")
 	p.Category = pr.Category
-	// Update ImageURL (allow null to delete image)
-	p.ImageURL = pr.ImageURL
+	// ไม่อัพเดท ImageURL ตรงนี้ เพื่อป้องกันการรีเซ็ตรูปเป็น null โดยไม่ได้ตั้งใจ
+	// ใช้ endpoint เฉพาะ POST /products/{id}/image สำหรับอัพโหลดรูป
+	// และ DELETE /products/{id}/image สำหรับลบรูป
 	p.QuantityPerPack = pr.QuantityPerPack
-	p.Price = pr.Price
-	p.Stock = pr.Stock
+	// ไม่อัพเดท Price และ Stock ตรงนี้ เพื่อป้องกันการรีเซ็ตค่าเป็น 0
+	// ใช้ UpdatePrice, UpdateStock หรือ endpoint เฉพาะแทน
+
+	// อัพเดทเฉพาะ SalesTiers ถ้ามีค่าส่งมา (สำหรับการตั้งราคาขาย tier)
+	if len(pr.Price.SalesTiers) > 0 {
+		p.Price.SalesTiers = pr.Price.SalesTiers
+	}
+
 	p.UpdatedAt = utils.NowInThailand()
 }
 
