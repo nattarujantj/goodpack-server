@@ -60,27 +60,33 @@ func (h *SaleHandler) enrichSaleWithBankAccountData(sale *models.Sale) {
 	}
 }
 
-// generateSaleID generates a unique sale ID based on VAT status
+// generateSaleID generates a unique sale ID based on VAT status.
+// Sequence continues across months (e.g. INV-6901-0005 -> INV-6902-0006).
 func (h *SaleHandler) generateSaleID(ctx context.Context, isVAT bool) (string, error) {
 	now := utils.NowInThailand()
-	// Convert to Buddhist Era (BE)
 	beYear := now.Year() + 543
 	dateStr := fmt.Sprintf("%02d%02d", beYear%100, int(now.Month())) // YYMM format
 
-	var prefix string
+	// Base prefix for sequence lookup (no month - continue across months)
+	var basePrefix string
 	if isVAT {
-		prefix = fmt.Sprintf("INV-%s", dateStr)
+		basePrefix = "INV-"
 	} else {
-		prefix = fmt.Sprintf("NV-%s", dateStr)
+		basePrefix = "NV-"
 	}
 
-	nextSeq, err := h.saleRepo.GetNextSequenceNumber(ctx, prefix)
+	nextSeq, err := h.saleRepo.GetNextSequenceNumber(ctx, basePrefix)
 	if err != nil {
 		return "", err
 	}
 
 	seqStr := fmt.Sprintf("%04d", nextSeq)
-	return prefix + "-" + seqStr, nil
+	// Full prefix with current YYMM for display
+	fullPrefix := fmt.Sprintf("INV-%s", dateStr)
+	if !isVAT {
+		fullPrefix = fmt.Sprintf("NV-%s", dateStr)
+	}
+	return fullPrefix + "-" + seqStr, nil
 }
 
 func (h *SaleHandler) GetSales(w http.ResponseWriter, r *http.Request) {
@@ -134,11 +140,21 @@ func (h *SaleHandler) CreateSale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate sale ID
-	saleCode, err := h.generateSaleID(ctx, saleReq.IsVAT)
-	if err != nil {
-		http.Error(w, "Failed to generate sale ID", http.StatusInternalServerError)
-		return
+	var saleCode string
+	if saleReq.SaleCode != nil && strings.TrimSpace(*saleReq.SaleCode) != "" {
+		saleCode = strings.TrimSpace(*saleReq.SaleCode)
+		existing, err := h.saleRepo.GetBySaleCode(ctx, saleCode)
+		if err == nil && existing != nil {
+			http.Error(w, "Sale code already exists", http.StatusBadRequest)
+			return
+		}
+	} else {
+		var err error
+		saleCode, err = h.generateSaleID(ctx, saleReq.IsVAT)
+		if err != nil {
+			http.Error(w, "Failed to generate sale ID", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Create sale
@@ -235,6 +251,18 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Sale not found", http.StatusNotFound)
 		return
+	}
+
+	// If saleCode is being changed, validate uniqueness
+	if saleReq.SaleCode != nil && strings.TrimSpace(*saleReq.SaleCode) != "" {
+		newCode := strings.TrimSpace(*saleReq.SaleCode)
+		if newCode != existingSale.SaleCode {
+			other, err := h.saleRepo.GetBySaleCode(ctx, newCode)
+			if err == nil && other != nil && other.ID.Hex() != id {
+				http.Error(w, "Sale code already exists", http.StatusBadRequest)
+				return
+			}
+		}
 	}
 
 	// Restore stock and rollback price updates for old items

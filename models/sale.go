@@ -3,8 +3,9 @@ package models
 import (
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"goodpack-server/utils"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Sale struct {
@@ -44,6 +45,7 @@ type SaleItem struct {
 }
 
 type SaleRequest struct {
+	SaleCode          *string       `json:"saleCode,omitempty"`
 	SaleDate          time.Time     `json:"saleDate"`
 	CustomerID        string        `json:"customerId"`
 	Items             []SaleItem    `json:"items"`
@@ -90,6 +92,9 @@ func (s *Sale) UpdateFromRequest(req *SaleRequest) {
 	vatType := req.VatType
 	if vatType == "" {
 		vatType = "exclusive" // Default to VAT นอก
+	}
+	if req.SaleCode != nil && *req.SaleCode != "" {
+		s.SaleCode = *req.SaleCode
 	}
 	s.SaleDate = req.SaleDate
 	s.CustomerID = req.CustomerID

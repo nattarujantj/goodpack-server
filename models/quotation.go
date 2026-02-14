@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"goodpack-server/utils"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // CustomTime handles ISO 8601 datetime format
@@ -81,6 +82,7 @@ type Quotation struct {
 
 // QuotationRequest represents the request body for creating/updating a quotation
 type QuotationRequest struct {
+	QuotationCode     *string         `json:"quotationCode,omitempty"`
 	QuotationDate     CustomTime      `json:"quotationDate"`
 	CustomerID        string          `json:"customerId"`
 	Items             []QuotationItem `json:"items"`
@@ -125,6 +127,9 @@ func (qr *QuotationRequest) ToQuotation() *Quotation {
 
 // UpdateFromRequest updates Quotation from QuotationRequest
 func (q *Quotation) UpdateFromRequest(qr *QuotationRequest) {
+	if qr.QuotationCode != nil && *qr.QuotationCode != "" {
+		q.QuotationCode = *qr.QuotationCode
+	}
 	q.QuotationDate = qr.QuotationDate.Time
 	q.CustomerID = qr.CustomerID
 	q.Items = qr.Items
@@ -186,7 +191,7 @@ func (q *Quotation) CalculateGrandTotal() float64 {
 			grandTotal = totalBeforeVAT + q.ShippingCost // ราคาที่กรอกคือราคารวม VAT แล้ว
 		} else {
 			// VAT นอก (exclusive): ราคา + VAT 7%
-		totalVAT = totalBeforeVAT * 0.07
+			totalVAT = totalBeforeVAT * 0.07
 			grandTotal = totalBeforeVAT + totalVAT + q.ShippingCost
 		}
 	} else {

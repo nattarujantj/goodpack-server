@@ -91,6 +91,15 @@ func (r *SaleRepository) Delete(id string) error {
 	return err
 }
 
+func (r *SaleRepository) GetBySaleCode(ctx context.Context, saleCode string) (*models.Sale, error) {
+	var sale models.Sale
+	err := r.collection.FindOne(ctx, bson.M{"saleCode": saleCode}).Decode(&sale)
+	if err != nil {
+		return nil, err
+	}
+	return &sale, nil
+}
+
 func (r *SaleRepository) GetNextSequenceNumber(ctx context.Context, prefix string) (int, error) {
 	// Find the highest sequence number for the given prefix
 	filter := bson.M{

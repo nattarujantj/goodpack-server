@@ -90,6 +90,15 @@ func (r *PurchaseRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (r *PurchaseRepository) GetByPurchaseCode(ctx context.Context, purchaseCode string) (*models.Purchase, error) {
+	var purchase models.Purchase
+	err := r.collection.FindOne(ctx, bson.M{"purchaseCode": purchaseCode}).Decode(&purchase)
+	if err != nil {
+		return nil, err
+	}
+	return &purchase, nil
+}
+
 // GetNextSequenceNumber gets the next sequence number for a given prefix
 func (r *PurchaseRepository) GetNextSequenceNumber(ctx context.Context, prefix string) (int, error) {
 	// Find the highest sequence number for this prefix

@@ -47,30 +47,32 @@ func (h *PurchaseHandler) enrichPurchaseWithSupplierData(purchase *models.Purcha
 	}
 }
 
-// generatePurchaseID generates a unique purchase ID based on VAT status
+// generatePurchaseID generates a unique purchase ID based on VAT status.
+// Sequence continues across months (e.g. PUR-VAT-6901-0005 -> PUR-VAT-6902-0006).
 func (h *PurchaseHandler) generatePurchaseID(ctx context.Context, isVAT bool) (string, error) {
 	now := utils.NowInThailand()
-	// Convert to Buddhist Era (BE)
 	beYear := now.Year() + 543
 	dateStr := fmt.Sprintf("%02d%02d", beYear%100, int(now.Month())) // YYMM format
 
-	var prefix string
+	// Base prefix for sequence lookup (no month - continue across months)
+	var basePrefix string
 	if isVAT {
-		prefix = fmt.Sprintf("PUR-VAT-%s", dateStr)
+		basePrefix = "PUR-VAT-"
 	} else {
-		prefix = fmt.Sprintf("PUR-NV-%s", dateStr)
+		basePrefix = "PUR-NV-"
 	}
 
-	// Get the next sequence number for this prefix
-	nextSeq, err := h.purchaseRepo.GetNextSequenceNumber(ctx, prefix)
+	nextSeq, err := h.purchaseRepo.GetNextSequenceNumber(ctx, basePrefix)
 	if err != nil {
 		return "", err
 	}
 
-	// Format sequence number with leading zeros (4 digits)
 	seqStr := fmt.Sprintf("%04d", nextSeq)
-
-	return prefix + "-" + seqStr, nil
+	fullPrefix := fmt.Sprintf("PUR-VAT-%s", dateStr)
+	if !isVAT {
+		fullPrefix = fmt.Sprintf("PUR-NV-%s", dateStr)
+	}
+	return fullPrefix + "-" + seqStr, nil
 }
 
 func (h *PurchaseHandler) GetPurchases(w http.ResponseWriter, r *http.Request) {
@@ -152,11 +154,21 @@ func (h *PurchaseHandler) CreatePurchase(w http.ResponseWriter, r *http.Request)
 	}
 	purchase.ContactName = &supplier.ContactName
 
-	// Generate unique purchase code
-	purchaseCode, err := h.generatePurchaseID(ctx, purchase.IsVAT)
-	if err != nil {
-		http.Error(w, "Failed to generate purchase code", http.StatusInternalServerError)
-		return
+	var purchaseCode string
+	if purchaseRequest.PurchaseCode != nil && strings.TrimSpace(*purchaseRequest.PurchaseCode) != "" {
+		purchaseCode = strings.TrimSpace(*purchaseRequest.PurchaseCode)
+		existing, err := h.purchaseRepo.GetByPurchaseCode(ctx, purchaseCode)
+		if err == nil && existing != nil {
+			http.Error(w, "Purchase code already exists", http.StatusBadRequest)
+			return
+		}
+	} else {
+		var err error
+		purchaseCode, err = h.generatePurchaseID(ctx, purchase.IsVAT)
+		if err != nil {
+			http.Error(w, "Failed to generate purchase code", http.StatusInternalServerError)
+			return
+		}
 	}
 	purchase.PurchaseCode = purchaseCode
 
@@ -199,6 +211,18 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 	if err := json.NewDecoder(r.Body).Decode(&purchaseRequest); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
+	}
+
+	// If purchaseCode is being changed, validate uniqueness
+	if purchaseRequest.PurchaseCode != nil && strings.TrimSpace(*purchaseRequest.PurchaseCode) != "" {
+		newCode := strings.TrimSpace(*purchaseRequest.PurchaseCode)
+		if newCode != existingPurchase.PurchaseCode {
+			other, err := h.purchaseRepo.GetByPurchaseCode(ctx, newCode)
+			if err == nil && other != nil && other.ID.Hex() != id {
+				http.Error(w, "Purchase code already exists", http.StatusBadRequest)
+				return
+			}
+		}
 	}
 
 	// Get supplier name

@@ -108,16 +108,25 @@ func (h *QuotationHandler) CreateQuotation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Generate quotation code
-	lastCode, err := h.quotationRepo.GetLastQuotationCode(ctx)
-	if err != nil {
-		http.Error(w, "Failed to get last quotation code", http.StatusInternalServerError)
-		return
-	}
-	quotationCode, err := models.GenerateQuotationCode(lastCode)
-	if err != nil {
-		http.Error(w, "Failed to generate quotation code", http.StatusInternalServerError)
-		return
+	var quotationCode string
+	if quotationReq.QuotationCode != nil && strings.TrimSpace(*quotationReq.QuotationCode) != "" {
+		quotationCode = strings.TrimSpace(*quotationReq.QuotationCode)
+		existing, err := h.quotationRepo.GetByCode(quotationCode)
+		if err == nil && existing != nil {
+			http.Error(w, "Quotation code already exists", http.StatusBadRequest)
+			return
+		}
+	} else {
+		lastCode, err := h.quotationRepo.GetLastQuotationCode(ctx)
+		if err != nil {
+			http.Error(w, "Failed to get last quotation code", http.StatusInternalServerError)
+			return
+		}
+		quotationCode, err = models.GenerateQuotationCode(lastCode)
+		if err != nil {
+			http.Error(w, "Failed to generate quotation code", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Create quotation
@@ -171,6 +180,18 @@ func (h *QuotationHandler) UpdateQuotation(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		http.Error(w, "Quotation not found", http.StatusNotFound)
 		return
+	}
+
+	// If quotationCode is being changed, validate uniqueness
+	if quotationReq.QuotationCode != nil && strings.TrimSpace(*quotationReq.QuotationCode) != "" {
+		newCode := strings.TrimSpace(*quotationReq.QuotationCode)
+		if newCode != existingQuotation.QuotationCode {
+			other, err := h.quotationRepo.GetByCode(newCode)
+			if err == nil && other != nil && other.ID.Hex() != id {
+				http.Error(w, "Quotation code already exists", http.StatusBadRequest)
+				return
+			}
+		}
 	}
 
 	// Update quotation
