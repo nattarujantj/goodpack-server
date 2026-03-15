@@ -90,6 +90,26 @@ func (r *PurchaseRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (r *PurchaseRepository) GetBySupplierID(ctx context.Context, supplierID string) ([]*models.Purchase, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "purchaseDate", Value: -1}})
+	cursor, err := r.collection.Find(ctx, bson.M{"supplierId": supplierID}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var purchases []*models.Purchase
+	for cursor.Next(ctx) {
+		var purchase models.Purchase
+		if err := cursor.Decode(&purchase); err != nil {
+			return nil, err
+		}
+		purchases = append(purchases, &purchase)
+	}
+
+	return purchases, nil
+}
+
 func (r *PurchaseRepository) GetByPurchaseCode(ctx context.Context, purchaseCode string) (*models.Purchase, error) {
 	var purchase models.Purchase
 	err := r.collection.FindOne(ctx, bson.M{"purchaseCode": purchaseCode}).Decode(&purchase)

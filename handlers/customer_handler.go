@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,12 +13,14 @@ import (
 )
 
 type CustomerHandler struct {
-	repo *repository.CustomerRepository
+	repo     *repository.CustomerRepository
+	saleRepo *repository.SaleRepository
 }
 
-func NewCustomerHandler(repo *repository.CustomerRepository) *CustomerHandler {
+func NewCustomerHandler(repo *repository.CustomerRepository, saleRepo *repository.SaleRepository) *CustomerHandler {
 	return &CustomerHandler{
-		repo: repo,
+		repo:     repo,
+		saleRepo: saleRepo,
 	}
 }
 
@@ -118,4 +121,28 @@ func (h *CustomerHandler) DeleteCustomer(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *CustomerHandler) GetCustomerSales(w http.ResponseWriter, r *http.Request) {
+	pathParts := strings.Split(r.URL.Path, "/")
+	// path: /api/customers/{id}/sales  → [..., "customers", "{id}", "sales"]
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid customer ID", http.StatusBadRequest)
+		return
+	}
+	id := pathParts[len(pathParts)-2]
+
+	sales, err := h.saleRepo.GetByCustomerID(context.Background(), id)
+	if err != nil {
+		log.Printf("Error fetching sales for customer %s: %v", id, err)
+		http.Error(w, fmt.Sprintf("Failed to fetch sales: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if sales == nil {
+		sales = []models.Sale{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(sales)
 }

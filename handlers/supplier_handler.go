@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -12,12 +13,14 @@ import (
 )
 
 type SupplierHandler struct {
-	repo *repository.SupplierRepository
+	repo         *repository.SupplierRepository
+	purchaseRepo *repository.PurchaseRepository
 }
 
-func NewSupplierHandler(repo *repository.SupplierRepository) *SupplierHandler {
+func NewSupplierHandler(repo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository) *SupplierHandler {
 	return &SupplierHandler{
-		repo: repo,
+		repo:         repo,
+		purchaseRepo: purchaseRepo,
 	}
 }
 
@@ -118,5 +121,29 @@ func (h *SupplierHandler) DeleteSupplier(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *SupplierHandler) GetSupplierPurchases(w http.ResponseWriter, r *http.Request) {
+	pathParts := strings.Split(r.URL.Path, "/")
+	// path: /api/suppliers/{id}/purchases → [..., "suppliers", "{id}", "purchases"]
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid supplier ID", http.StatusBadRequest)
+		return
+	}
+	id := pathParts[len(pathParts)-2]
+
+	purchases, err := h.purchaseRepo.GetBySupplierID(context.Background(), id)
+	if err != nil {
+		log.Printf("Error fetching purchases for supplier %s: %v", id, err)
+		http.Error(w, fmt.Sprintf("Failed to fetch purchases: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if purchases == nil {
+		purchases = []*models.Purchase{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(purchases)
 }
 

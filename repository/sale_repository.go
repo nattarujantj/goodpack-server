@@ -91,6 +91,22 @@ func (r *SaleRepository) Delete(id string) error {
 	return err
 }
 
+func (r *SaleRepository) GetByCustomerID(ctx context.Context, customerID string) ([]models.Sale, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "saleDate", Value: -1}})
+	cursor, err := r.collection.Find(ctx, bson.M{"customerId": customerID}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var sales []models.Sale
+	if err = cursor.All(ctx, &sales); err != nil {
+		return nil, err
+	}
+
+	return sales, nil
+}
+
 func (r *SaleRepository) GetBySaleCode(ctx context.Context, saleCode string) (*models.Sale, error) {
 	var sale models.Sale
 	err := r.collection.FindOne(ctx, bson.M{"saleCode": saleCode}).Decode(&sale)

@@ -17,8 +17,8 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 
 	// Initialize handlers test2
 	productHandler := handlers.NewProductHandler(productRepo)
-	customerHandler := handlers.NewCustomerHandler(customerRepo)
-	supplierHandler := handlers.NewSupplierHandler(supplierRepo)
+	customerHandler := handlers.NewCustomerHandler(customerRepo, saleRepo)
+	supplierHandler := handlers.NewSupplierHandler(supplierRepo, purchaseRepo)
 	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, supplierRepo, productRepo, stockAdjustmentRepo)
 	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo, stockAdjustmentRepo)
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
@@ -62,6 +62,7 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/customers/{id}", customerHandler.GetCustomer).Methods("GET")
 	api.HandleFunc("/customers/{id}", customerHandler.UpdateCustomer).Methods("PUT")
 	api.HandleFunc("/customers/{id}", customerHandler.DeleteCustomer).Methods("DELETE")
+	api.HandleFunc("/customers/{id}/sales", customerHandler.GetCustomerSales).Methods("GET")
 
 	// Supplier routes
 	api.HandleFunc("/suppliers", supplierHandler.GetSuppliers).Methods("GET")
@@ -69,6 +70,7 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/suppliers/{id}", supplierHandler.GetSupplier).Methods("GET")
 	api.HandleFunc("/suppliers/{id}", supplierHandler.UpdateSupplier).Methods("PUT")
 	api.HandleFunc("/suppliers/{id}", supplierHandler.DeleteSupplier).Methods("DELETE")
+	api.HandleFunc("/suppliers/{id}/purchases", supplierHandler.GetSupplierPurchases).Methods("GET")
 
 	// Purchase routes
 	api.HandleFunc("/purchases", purchaseHandler.GetPurchases).Methods("GET")
@@ -126,6 +128,10 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	// Static file serving for uploaded images
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads/"))))
 
+	// Static file serving for Flutter web app
+	flutterFS := http.FileServer(http.Dir("web/"))
+	router.PathPrefix("/").Handler(noCacheForHTML(flutterFS))
+
 	// Health check
 	api.HandleFunc("/health", healthCheck).Methods("GET")
 
@@ -139,6 +145,20 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 
 	handler := c.Handler(router)
 	return handler
+}
+
+// noCacheForHTML sets Cache-Control: no-store for index.html and service worker,
+// but allows long-term caching for hashed assets (JS, CSS, etc.)
+func noCacheForHTML(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/" || path == "/index.html" || path == "/flutter_service_worker.js" || path == "/flutter_bootstrap.js" {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
