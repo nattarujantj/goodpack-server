@@ -142,10 +142,8 @@ func (p *Product) UpdateFromRequest(pr *ProductRequest) {
 	// ไม่อัพเดท Price และ Stock ตรงนี้ เพื่อป้องกันการรีเซ็ตค่าเป็น 0
 	// ใช้ UpdatePrice, UpdateStock หรือ endpoint เฉพาะแทน
 
-	// อัพเดทเฉพาะ SalesTiers ถ้ามีค่าส่งมา (สำหรับการตั้งราคาขาย tier)
-	if len(pr.Price.SalesTiers) > 0 {
-		p.Price.SalesTiers = pr.Price.SalesTiers
-	}
+	// อัพเดท SalesTiers เสมอ (empty array = ลบ tier ทั้งหมด)
+	p.Price.SalesTiers = pr.Price.SalesTiers
 
 	p.UpdatedAt = utils.NowInThailand()
 }
