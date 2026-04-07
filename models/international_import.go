@@ -50,6 +50,7 @@ type ImportItem struct {
 	ProductCode          string  `bson:"productCode" json:"productCode"`
 	UsdPricePerUnit      float64 `bson:"usdPricePerUnit" json:"usdPricePerUnit"`
 	Quantity             int     `bson:"quantity" json:"quantity"`
+	PiecesPerBox         int     `bson:"piecesPerBox" json:"piecesPerBox"`
 	BoxWidth             float64 `bson:"boxWidth" json:"boxWidth"`
 	BoxLength            float64 `bson:"boxLength" json:"boxLength"`
 	BoxHeight            float64 `bson:"boxHeight" json:"boxHeight"`
@@ -85,7 +86,12 @@ func (r *InternationalImportRequest) CalculateItemCosts() {
 	totalCBM := 0.0
 	for i := range r.Items {
 		item := &r.Items[i]
-		rawCBM := float64(item.Quantity) * item.BoxWidth * item.BoxLength * item.BoxHeight / 1_000_000
+		ppb := item.PiecesPerBox
+		if ppb <= 0 {
+			ppb = 1
+		}
+		numBoxes := math.Ceil(float64(item.Quantity) / float64(ppb))
+		rawCBM := numBoxes * item.BoxWidth * item.BoxLength * item.BoxHeight / 1_000_000
 		item.CBM = math.Ceil(rawCBM)
 		totalCBM += item.CBM
 	}
