@@ -58,6 +58,7 @@ type ImportItem struct {
 	CBM                  float64 `bson:"cbm" json:"cbm"`
 	ShippingCostPerUnit  float64 `bson:"shippingCostPerUnit" json:"shippingCostPerUnit"`
 	Commission           float64 `bson:"commission" json:"commission"`
+	CommissionPaid       bool    `bson:"commissionPaid" json:"commissionPaid"`
 	CostPerUnitBeforeVAT float64 `bson:"costPerUnitBeforeVAT" json:"costPerUnitBeforeVAT"`
 	VATPerUnit           float64 `bson:"vatPerUnit" json:"vatPerUnit"`
 	CostPerUnitAfterVAT  float64 `bson:"costPerUnitAfterVAT" json:"costPerUnitAfterVAT"`
