@@ -12,6 +12,13 @@ type Config struct {
 	MongoURI    string
 	Database    string
 	Environment string
+
+	JWTSecret string
+	JWTExpiry string
+
+	AdminUsername    string
+	AdminPassword    string
+	AdminDisplayName string
 }
 
 func Load() *Config {
@@ -25,6 +32,13 @@ func Load() *Config {
 		MongoURI:    getEnv("MONGO_URI", "mongodb://localhost:27017"),
 		Database:    getEnv("DATABASE_NAME", "goodpack"),
 		Environment: getEnv("ENVIRONMENT", "development"),
+
+		JWTSecret: getEnv("JWT_SECRET", "change-me-in-production"),
+		JWTExpiry: getEnv("JWT_EXPIRY", "24h"),
+
+		AdminUsername:    getEnv("ADMIN_USERNAME", "admin"),
+		AdminPassword:    getEnv("ADMIN_PASSWORD", ""),
+		AdminDisplayName: getEnv("ADMIN_DISPLAY_NAME", "Super Admin"),
 	}
 }
 

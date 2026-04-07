@@ -3,19 +3,36 @@ package routes
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 
 	"goodpack-server/handlers"
+	"goodpack-server/middleware"
 	"goodpack-server/repository"
 	"goodpack-server/utils"
 )
 
-func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, purchaseOrderRepo *repository.PurchaseOrderRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository, shippingCompanyRepo *repository.ShippingCompanyRepository, internationalImportRepo *repository.InternationalImportRepository, expenseRepo *repository.ExpenseRepository) http.Handler {
+func SetupRoutes(
+	productRepo *repository.ProductRepository,
+	customerRepo *repository.CustomerRepository,
+	supplierRepo *repository.SupplierRepository,
+	purchaseRepo *repository.PurchaseRepository,
+	saleRepo *repository.SaleRepository,
+	quotationRepo *repository.QuotationRepository,
+	purchaseOrderRepo *repository.PurchaseOrderRepository,
+	stockAdjustmentRepo *repository.StockAdjustmentRepository,
+	shippingCompanyRepo *repository.ShippingCompanyRepository,
+	internationalImportRepo *repository.InternationalImportRepository,
+	expenseRepo *repository.ExpenseRepository,
+	userRepo *repository.UserRepository,
+	jwtSecret string,
+	jwtExpiry time.Duration,
+) http.Handler {
 	router := mux.NewRouter()
 
-	// Initialize handlers test2
+	// Initialize handlers
 	productHandler := handlers.NewProductHandler(productRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo, saleRepo)
 	supplierHandler := handlers.NewSupplierHandler(supplierRepo, purchaseRepo)
@@ -28,9 +45,22 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
 	shippingCompanyHandler := handlers.NewShippingCompanyHandler(shippingCompanyRepo)
 	internationalImportHandler := handlers.NewInternationalImportHandler(internationalImportRepo, supplierRepo, shippingCompanyRepo, productRepo, purchaseRepo, stockAdjustmentRepo)
+	authHandler := handlers.NewAuthHandler(userRepo, jwtSecret, jwtExpiry)
 
-	// API routes
+	// ── Public routes (no auth required) ──
+	router.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/health", healthCheck).Methods("GET")
+
+	// ── Protected routes (auth required) ──
 	api := router.PathPrefix("/api").Subrouter()
+	api.Use(middleware.AuthMiddleware(jwtSecret, userRepo))
+
+	// Auth routes (require login)
+	api.HandleFunc("/auth/me", authHandler.GetMe).Methods("GET")
+	api.HandleFunc("/auth/change-password", authHandler.ChangePassword).Methods("POST")
+	api.HandleFunc("/auth/register", authHandler.Register).Methods("POST")
+	api.HandleFunc("/auth/users", authHandler.GetAllUsers).Methods("GET")
+	api.HandleFunc("/auth/users", authHandler.DeleteUser).Methods("DELETE")
 
 	// Product routes
 	api.HandleFunc("/products", productHandler.GetProducts).Methods("GET")
@@ -138,23 +168,18 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	flutterFS := http.FileServer(http.Dir("web/"))
 	router.PathPrefix("/").Handler(noCacheForHTML(flutterFS))
 
-	// Health check
-	api.HandleFunc("/health", healthCheck).Methods("GET")
-
 	// CORS configuration
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
-		AllowCredentials: true,
+		AllowCredentials: false,
 	})
 
 	handler := c.Handler(router)
 	return handler
 }
 
-// noCacheForHTML sets Cache-Control: no-store for index.html and service worker,
-// but allows long-term caching for hashed assets (JS, CSS, etc.)
 func noCacheForHTML(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
