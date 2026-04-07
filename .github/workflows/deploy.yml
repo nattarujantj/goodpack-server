@@ -33,7 +33,7 @@ jobs:
           
           if curl -s http://localhost:8080/api/health > /dev/null 2>&1; then
             echo "✅ Go Server deployed successfully!"
-            echo "📡 API: http://192.168.1.162:8080/api"
+            echo "📡 API: https://admin.goodpackagingsupply.com/api"
           else
             echo "❌ Server health check failed"
             sudo journalctl -u goodpack-server --no-pager -n 20
