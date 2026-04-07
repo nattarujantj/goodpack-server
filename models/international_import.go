@@ -92,7 +92,7 @@ func (r *InternationalImportRequest) CalculateItemCosts() {
 		}
 		numBoxes := math.Ceil(float64(item.Quantity) / float64(ppb))
 		rawCBM := numBoxes * item.BoxWidth * item.BoxLength * item.BoxHeight / 1_000_000
-		item.CBM = math.Ceil(rawCBM)
+		item.CBM = math.Ceil(rawCBM*10) / 10
 		totalCBM += item.CBM
 	}
 
