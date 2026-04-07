@@ -12,7 +12,7 @@ import (
 	"goodpack-server/utils"
 )
 
-func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, purchaseOrderRepo *repository.PurchaseOrderRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) http.Handler {
+func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, purchaseOrderRepo *repository.PurchaseOrderRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository, shippingCompanyRepo *repository.ShippingCompanyRepository, internationalImportRepo *repository.InternationalImportRepository) http.Handler {
 	router := mux.NewRouter()
 
 	// Initialize handlers test2
@@ -26,6 +26,8 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	migrationHandler := handlers.NewMigrationHandler(customerRepo, productRepo, purchaseRepo, saleRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
 	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo)
+	shippingCompanyHandler := handlers.NewShippingCompanyHandler(shippingCompanyRepo)
+	internationalImportHandler := handlers.NewInternationalImportHandler(internationalImportRepo, supplierRepo, shippingCompanyRepo, productRepo, purchaseRepo, stockAdjustmentRepo)
 
 	// API routes
 	api := router.PathPrefix("/api").Subrouter()
@@ -124,6 +126,20 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/import/customers/template", importHandler.GetCustomerTemplate).Methods("GET")
 	api.HandleFunc("/import/products", importHandler.ImportProducts).Methods("POST")
 	api.HandleFunc("/import/products/template", importHandler.GetProductTemplate).Methods("GET")
+
+	// Shipping Company routes
+	api.HandleFunc("/shipping-companies", shippingCompanyHandler.GetAll).Methods("GET")
+	api.HandleFunc("/shipping-companies", shippingCompanyHandler.Create).Methods("POST")
+	api.HandleFunc("/shipping-companies/{id}", shippingCompanyHandler.Update).Methods("PUT")
+	api.HandleFunc("/shipping-companies/{id}", shippingCompanyHandler.Delete).Methods("DELETE")
+
+	// International Import routes
+	api.HandleFunc("/international-imports", internationalImportHandler.GetAll).Methods("GET")
+	api.HandleFunc("/international-imports", internationalImportHandler.Create).Methods("POST")
+	api.HandleFunc("/international-imports/{id}", internationalImportHandler.GetByID).Methods("GET")
+	api.HandleFunc("/international-imports/{id}", internationalImportHandler.Update).Methods("PUT")
+	api.HandleFunc("/international-imports/{id}", internationalImportHandler.Delete).Methods("DELETE")
+	api.HandleFunc("/international-imports/{id}/create-purchase", internationalImportHandler.CreatePurchaseFromImport).Methods("POST")
 
 	// Static file serving for uploaded images
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads/"))))
