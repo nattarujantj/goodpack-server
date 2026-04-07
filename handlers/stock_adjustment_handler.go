@@ -368,7 +368,7 @@ func (h *StockAdjustmentHandler) GetStockHistoryBySource(w http.ResponseWriter, 
 
 	sourceType := models.SourceType(sourceTypeStr)
 	if sourceType != models.SourceTypePurchase && sourceType != models.SourceTypeSale &&
-		sourceType != models.SourceTypeAdjustment && sourceType != models.SourceTypeMigration {
+		sourceType != models.SourceTypeAdjustment {
 		http.Error(w, "Invalid source type", http.StatusBadRequest)
 		return
 	}
@@ -405,8 +405,7 @@ func (h *StockAdjustmentHandler) DeleteStockAdjustment(w http.ResponseWriter, r 
 	}
 
 	// Reverse the stock adjustment based on source type
-	if adjustment.SourceType == models.SourceTypeAdjustment || adjustment.SourceType == models.SourceTypeMigration {
-		// Manual/migration adjustments modified InitialStock, so reverse with ApplyManualStockAdjustment
+	if adjustment.SourceType == models.SourceTypeAdjustment {
 		var reverseType models.StockAdjustmentType
 		if adjustment.AdjustmentType == models.AdjustmentTypeAdd {
 			reverseType = models.AdjustmentTypeReduce

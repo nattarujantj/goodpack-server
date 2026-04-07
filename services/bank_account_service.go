@@ -42,23 +42,3 @@ func (s *BankAccountService) LoadBankAccountFromConfig(accountID string) (*model
 	return nil, nil // Account not found
 }
 
-// LoadAllBankAccounts loads all bank accounts from config file
-func (s *BankAccountService) LoadAllBankAccounts() ([]models.BankAccount, error) {
-	// Get the directory of the current file
-	dir := filepath.Dir(".")
-	configPath := filepath.Join(dir, "config", "accounts.json")
-
-	// Read the config file
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse JSON
-	var accounts []models.BankAccount
-	if err := json.Unmarshal(data, &accounts); err != nil {
-		return nil, err
-	}
-
-	return accounts, nil
-}

@@ -31,7 +31,6 @@ const (
 	SourceTypePurchase   SourceType = "purchase"   // จากรายการซื้อ
 	SourceTypeSale       SourceType = "sale"       // จากรายการขาย
 	SourceTypeAdjustment SourceType = "adjustment" // จากฟีเจอร์แก้ไขสต็อก
-	SourceTypeMigration  SourceType = "migration"  // จาก migration
 )
 
 // StockAdjustment represents a stock adjustment record

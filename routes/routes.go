@@ -23,7 +23,6 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo, stockAdjustmentRepo)
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
 	purchaseOrderHandler := handlers.NewPurchaseOrderHandler(purchaseOrderRepo, supplierRepo, productRepo)
-	migrationHandler := handlers.NewMigrationHandler(customerRepo, productRepo, purchaseRepo, saleRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
 	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo, expenseRepo)
 	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
@@ -107,17 +106,6 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/purchase-orders/{id}/copy-to-purchase", purchaseOrderHandler.CopyToPurchase).Methods("GET")
 	api.HandleFunc("/purchase-orders/{id}/status", purchaseOrderHandler.UpdatePurchaseOrderStatus).Methods("PATCH")
 
-	// Migration routes
-	api.HandleFunc("/migration/customers/csv", migrationHandler.MigrateCustomersFromCSV).Methods("POST")
-	api.HandleFunc("/migration/customers/template", migrationHandler.GetCustomerCSVTemplate).Methods("GET")
-	api.HandleFunc("/migration/products/csv", migrationHandler.MigrateProductsFromCSV).Methods("POST")
-	api.HandleFunc("/migration/products/template", migrationHandler.GetProductCSVTemplate).Methods("GET")
-	api.HandleFunc("/migration/purchases/csv", migrationHandler.MigratePurchasesFromCSV).Methods("POST")
-	api.HandleFunc("/migration/purchases/template", migrationHandler.GetPurchaseCSVTemplate).Methods("GET")
-	api.HandleFunc("/migration/sales/csv", migrationHandler.MigrateSalesFromCSV).Methods("POST")
-	api.HandleFunc("/migration/sales/template", migrationHandler.GetSaleCSVTemplate).Methods("GET")
-	api.HandleFunc("/migration/status", migrationHandler.GetMigrationStatus).Methods("GET")
-
 	// Expense routes
 	api.HandleFunc("/expenses", expenseHandler.GetExpenses).Methods("GET")
 	api.HandleFunc("/expenses", expenseHandler.CreateExpense).Methods("POST")
@@ -128,13 +116,6 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 
 	// Export routes
 	api.HandleFunc("/export/email", exportHandler.ExportAndSendEmail).Methods("POST")
-
-	// Import routes
-	importHandler := handlers.NewImportHandler(customerRepo, productRepo)
-	api.HandleFunc("/import/customers", importHandler.ImportCustomers).Methods("POST")
-	api.HandleFunc("/import/customers/template", importHandler.GetCustomerTemplate).Methods("GET")
-	api.HandleFunc("/import/products", importHandler.ImportProducts).Methods("POST")
-	api.HandleFunc("/import/products/template", importHandler.GetProductTemplate).Methods("GET")
 
 	// Shipping Company routes
 	api.HandleFunc("/shipping-companies", shippingCompanyHandler.GetAll).Methods("GET")

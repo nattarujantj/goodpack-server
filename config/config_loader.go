@@ -149,11 +149,6 @@ func (cl *ConfigLoader) GetColors() []ColorItem {
 	return cl.config.Colors
 }
 
-// GetAccounts returns all accounts
-func (cl *ConfigLoader) GetAccounts() []AccountItem {
-	return cl.config.Accounts
-}
-
 // GetActiveAccounts returns only active accounts
 func (cl *ConfigLoader) GetActiveAccounts() []AccountItem {
 	var activeAccounts []AccountItem
