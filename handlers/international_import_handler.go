@@ -206,6 +206,13 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 	}
 	id := pathParts[len(pathParts)-2]
 
+	var body struct {
+		IsVAT bool `json:"isVAT"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		body.IsVAT = true
+	}
+
 	imp, err := h.importRepo.GetByID(ctx, id)
 	if err != nil {
 		http.Error(w, "International import not found", http.StatusNotFound)
@@ -217,7 +224,7 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 		return
 	}
 
-	purchaseReq := imp.ToPurchaseRequest()
+	purchaseReq := imp.ToPurchaseRequest(body.IsVAT)
 
 	supplier, err := h.supplierRepo.GetByID(purchaseReq.SupplierID)
 	if err != nil {
@@ -245,9 +252,14 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 		return
 	}
 
+	if err := purchaseHandler.updateProductData(ctx, purchase); err != nil {
+		fmt.Printf("Warning: Failed to update product data from import purchase: %v\n", err)
+	}
+
 	purchaseID := purchase.ID.Hex()
 	imp.Status = "purchased"
 	imp.PurchaseID = &purchaseID
+	imp.PurchaseIsVAT = &body.IsVAT
 	imp.UpdatedAt = utils.NowInThailand()
 
 	if err := h.importRepo.Update(ctx, id, imp); err != nil {

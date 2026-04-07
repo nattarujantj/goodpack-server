@@ -32,9 +32,10 @@ type InternationalImport struct {
 	TotalProductCost  float64 `bson:"totalProductCost" json:"totalProductCost"`
 	GrandTotal        float64 `bson:"grandTotal" json:"grandTotal"`
 	// Status
-	Status     string  `bson:"status" json:"status"` // "draft" | "purchased"
-	PurchaseID *string `bson:"purchaseId,omitempty" json:"purchaseId,omitempty"`
-	Notes      *string `bson:"notes,omitempty" json:"notes,omitempty"`
+	Status        string  `bson:"status" json:"status"` // "draft" | "purchased"
+	PurchaseID    *string `bson:"purchaseId,omitempty" json:"purchaseId,omitempty"`
+	PurchaseIsVAT *bool   `bson:"purchaseIsVAT,omitempty" json:"purchaseIsVAT,omitempty"`
+	Notes         *string `bson:"notes,omitempty" json:"notes,omitempty"`
 	CreatedAt  time.Time `bson:"createdAt" json:"createdAt"`
 	UpdatedAt  time.Time `bson:"updatedAt" json:"updatedAt"`
 }
@@ -214,25 +215,34 @@ func (imp *InternationalImport) UpdateFromRequest(r *InternationalImportRequest)
 }
 
 // ToPurchaseRequest converts the import to a PurchaseRequest for creating a domestic purchase record.
-func (imp *InternationalImport) ToPurchaseRequest() *PurchaseRequest {
+func (imp *InternationalImport) ToPurchaseRequest(isVAT bool) *PurchaseRequest {
 	purchaseItems := make([]PurchaseItem, len(imp.Items))
 	for i, item := range imp.Items {
+		unitPrice := item.CostPerUnitBeforeVAT
+		if isVAT {
+			unitPrice = item.CostPerUnitAfterVAT
+		}
 		purchaseItems[i] = PurchaseItem{
 			ProductID:   item.ProductID,
 			ProductName: item.ProductName,
 			ProductCode: item.ProductCode,
 			Quantity:    item.Quantity,
-			UnitPrice:   item.CostPerUnitBeforeVAT,
-			TotalPrice:  item.CostPerUnitBeforeVAT * float64(item.Quantity),
+			UnitPrice:   unitPrice,
+			TotalPrice:  unitPrice * float64(item.Quantity),
 		}
+	}
+
+	vatType := ""
+	if isVAT {
+		vatType = "inclusive"
 	}
 
 	return &PurchaseRequest{
 		PurchaseDate: imp.ImportDate,
 		SupplierID:   imp.SupplierID,
 		Items:        purchaseItems,
-		IsVAT:        true,
-		VATType:      "exclusive",
+		IsVAT:        isVAT,
+		VATType:      vatType,
 		ShippingCost: 0,
 		Payment: PaymentInfo{
 			IsPaid: false,
