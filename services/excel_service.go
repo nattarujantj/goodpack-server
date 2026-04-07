@@ -16,8 +16,8 @@ func NewExcelService() *ExcelService {
 	return &ExcelService{}
 }
 
-// GeneratePurchaseSaleExcel creates an Excel file with 4 sheets: ขาย VAT, ขาย Non-VAT, ซื้อ VAT, ซื้อ Non-VAT
-func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sales []models.Sale, month int, year int) (*bytes.Buffer, error) {
+// GeneratePurchaseSaleExcel creates an Excel file with 5 sheets: ขาย VAT, ขาย Non-VAT, ซื้อ VAT, ซื้อ Non-VAT, ค่าใช้จ่าย
+func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sales []models.Sale, expenses []models.Expense, month int, year int) (*bytes.Buffer, error) {
 	f := excelize.NewFile()
 	defer f.Close()
 
@@ -62,6 +62,9 @@ func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sa
 
 	f.NewSheet("ซื้อ Non-VAT")
 	s.createPurchaseSheet(f, "ซื้อ Non-VAT", purchasesNonVAT, monthName, buddhistYear, false)
+
+	f.NewSheet("ค่าใช้จ่าย")
+	s.createExpenseSheet(f, "ค่าใช้จ่าย", expenses, monthName, buddhistYear)
 
 	// Save to buffer
 	buf, err := f.WriteToBuffer()
@@ -425,6 +428,99 @@ func GetThaiMonthName(month int) string {
 		return ""
 	}
 	return thaiMonths[month-1]
+}
+
+func (s *ExcelService) createExpenseSheet(f *excelize.File, sheet string, expenses []models.Expense, monthName string, year int) {
+	f.SetColWidth(sheet, "A", "A", 5)
+	f.SetColWidth(sheet, "B", "B", 25)
+	f.SetColWidth(sheet, "C", "C", 40)
+	f.SetColWidth(sheet, "D", "D", 12)
+	f.SetColWidth(sheet, "E", "E", 15)
+	f.SetColWidth(sheet, "F", "F", 30)
+
+	titleStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 14},
+		Alignment: &excelize.Alignment{Horizontal: "center"},
+	})
+
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"ED7D31"}},
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
+		Border: []excelize.Border{
+			{Type: "left", Color: "000000", Style: 1},
+			{Type: "top", Color: "000000", Style: 1},
+			{Type: "bottom", Color: "000000", Style: 1},
+			{Type: "right", Color: "000000", Style: 1},
+		},
+	})
+
+	dataStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Size: 10},
+		Alignment: &excelize.Alignment{Vertical: "center", WrapText: true},
+		Border: []excelize.Border{
+			{Type: "left", Color: "000000", Style: 1},
+			{Type: "top", Color: "000000", Style: 1},
+			{Type: "bottom", Color: "000000", Style: 1},
+			{Type: "right", Color: "000000", Style: 1},
+		},
+	})
+
+	numberStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Size: 10},
+		Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+		NumFmt:    4,
+		Border: []excelize.Border{
+			{Type: "left", Color: "000000", Style: 1},
+			{Type: "top", Color: "000000", Style: 1},
+			{Type: "bottom", Color: "000000", Style: 1},
+			{Type: "right", Color: "000000", Style: 1},
+		},
+	})
+
+	f.MergeCell(sheet, "A1", "F1")
+	f.SetCellValue(sheet, "A1", fmt.Sprintf("ค่าใช้จ่าย - %s %d", monthName, year))
+	f.SetCellStyle(sheet, "A1", "F1", titleStyle)
+
+	headers := []string{"ลำดับ", "หมวดหมู่", "รายละเอียด", "วันที่", "จำนวนเงิน", "หมายเหตุ"}
+	for i, h := range headers {
+		cell := fmt.Sprintf("%c3", 'A'+i)
+		f.SetCellValue(sheet, cell, h)
+	}
+	f.SetCellStyle(sheet, "A3", "F3", headerStyle)
+
+	var sumAmount float64
+
+	for i, exp := range expenses {
+		row := i + 4
+
+		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), i+1)
+		f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), exp.Category)
+		f.SetCellStyle(sheet, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), exp.Description)
+		f.SetCellStyle(sheet, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), exp.ExpenseDate.Format("02/01/2006"))
+		f.SetCellStyle(sheet, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), exp.Amount)
+		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), numberStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), exp.Notes)
+		f.SetCellStyle(sheet, fmt.Sprintf("F%d", row), fmt.Sprintf("F%d", row), dataStyle)
+
+		sumAmount += exp.Amount
+	}
+
+	summaryRow := len(expenses) + 5
+	f.SetCellValue(sheet, fmt.Sprintf("D%d", summaryRow), "รวมทั้งหมด:")
+	f.SetCellStyle(sheet, fmt.Sprintf("D%d", summaryRow), fmt.Sprintf("D%d", summaryRow), headerStyle)
+
+	f.SetCellValue(sheet, fmt.Sprintf("E%d", summaryRow), sumAmount)
+	f.SetCellStyle(sheet, fmt.Sprintf("E%d", summaryRow), fmt.Sprintf("E%d", summaryRow), numberStyle)
 }
 
 // Helper function to format time as Thai date

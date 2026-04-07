@@ -16,15 +16,17 @@ type ExportHandler struct {
 	purchaseRepo *repository.PurchaseRepository
 	saleRepo     *repository.SaleRepository
 	customerRepo *repository.CustomerRepository
+	expenseRepo  *repository.ExpenseRepository
 	excelService *services.ExcelService
 	emailService *services.EmailService
 }
 
-func NewExportHandler(purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository) *ExportHandler {
+func NewExportHandler(purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository, expenseRepo *repository.ExpenseRepository) *ExportHandler {
 	return &ExportHandler{
 		purchaseRepo: purchaseRepo,
 		saleRepo:     saleRepo,
 		customerRepo: customerRepo,
+		expenseRepo:  expenseRepo,
 		excelService: services.NewExcelService(),
 		emailService: services.NewEmailService(),
 	}
@@ -65,6 +67,7 @@ type ExportEmailResponse struct {
 	Message       string `json:"message"`
 	PurchaseCount int    `json:"purchaseCount,omitempty"`
 	SaleCount     int    `json:"saleCount,omitempty"`
+	ExpenseCount  int    `json:"expenseCount,omitempty"`
 }
 
 // ExportAndSendEmail handles the export request
@@ -136,10 +139,25 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	log.Printf("📊 Found %d purchases and %d sales for %d/%d", len(purchases), len(sales), req.Month, req.Year)
+	// Fetch expenses for the month
+	allExpenses, err := h.expenseRepo.GetAll(ctx)
+	if err != nil {
+		log.Printf("❌ Failed to fetch expenses: %v", err)
+		sendErrorResponse(w, "Failed to fetch expenses")
+		return
+	}
+
+	var expenses []models.Expense
+	for _, e := range allExpenses {
+		if e.ExpenseDate.After(startDate.Add(-time.Second)) && e.ExpenseDate.Before(endDate.Add(time.Second)) {
+			expenses = append(expenses, *e)
+		}
+	}
+
+	log.Printf("📊 Found %d purchases, %d sales, %d expenses for %d/%d", len(purchases), len(sales), len(expenses), req.Month, req.Year)
 
 	// Generate Excel file
-	excelBuffer, err := h.excelService.GeneratePurchaseSaleExcel(purchases, sales, req.Month, req.Year)
+	excelBuffer, err := h.excelService.GeneratePurchaseSaleExcel(purchases, sales, expenses, req.Month, req.Year)
 	if err != nil {
 		log.Printf("❌ Failed to generate Excel: %v", err)
 		sendErrorResponse(w, "Failed to generate Excel file")
@@ -147,7 +165,7 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Build email body
-	emailBody := h.emailService.BuildEmailBody(req.Month, req.Year, len(purchases), len(sales))
+	emailBody := h.emailService.BuildEmailBody(req.Month, req.Year, len(purchases), len(sales), len(expenses))
 
 	// Generate filename
 	thaiMonth := services.GetThaiMonthName(req.Month)
@@ -173,6 +191,7 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 		Message:       fmt.Sprintf("ส่งรายงาน %s %d ไปยัง %d email สำเร็จ!", thaiMonth, buddhistYear, len(req.Emails)),
 		PurchaseCount: len(purchases),
 		SaleCount:     len(sales),
+		ExpenseCount:  len(expenses),
 	}
 
 	w.Header().Set("Content-Type", "application/json")

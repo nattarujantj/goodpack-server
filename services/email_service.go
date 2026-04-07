@@ -141,7 +141,7 @@ func base64EncodeBytes(data []byte) string {
 }
 
 // BuildEmailBody creates an HTML email body for the export notification
-func (s *EmailService) BuildEmailBody(month int, year int, purchaseCount int, saleCount int) string {
+func (s *EmailService) BuildEmailBody(month int, year int, purchaseCount int, saleCount int, expenseCount int) string {
 	thaiMonths := []string{
 		"มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
 		"พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
@@ -186,12 +186,17 @@ func (s *EmailService) BuildEmailBody(month int, year int, purchaseCount int, sa
                     <span>💰 รายการขาย:</span>
                     <strong>%d รายการ</strong>
                 </div>
+                <div class="summary-item">
+                    <span>📋 ค่าใช้จ่าย:</span>
+                    <strong>%d รายการ</strong>
+                </div>
             </div>
             
             <p>ไฟล์ Excel ประกอบด้วย:</p>
             <ul>
                 <li><strong>รายการซื้อ</strong> - รายละเอียดการซื้อทั้งหมด</li>
                 <li><strong>รายการขาย</strong> - รายละเอียดการขายทั้งหมด</li>
+                <li><strong>ค่าใช้จ่าย</strong> - รายละเอียดค่าใช้จ่ายทั่วไป</li>
             </ul>
         </div>
         <div class="footer">
@@ -201,6 +206,6 @@ func (s *EmailService) BuildEmailBody(month int, year int, purchaseCount int, sa
     </div>
 </body>
 </html>
-`, monthName, buddhistYear, monthName, buddhistYear, purchaseCount, saleCount, year)
+`, monthName, buddhistYear, monthName, buddhistYear, purchaseCount, saleCount, expenseCount, year)
 }
 

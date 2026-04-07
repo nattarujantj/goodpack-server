@@ -12,7 +12,7 @@ import (
 	"goodpack-server/utils"
 )
 
-func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, purchaseOrderRepo *repository.PurchaseOrderRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository, shippingCompanyRepo *repository.ShippingCompanyRepository, internationalImportRepo *repository.InternationalImportRepository) http.Handler {
+func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *repository.CustomerRepository, supplierRepo *repository.SupplierRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, quotationRepo *repository.QuotationRepository, purchaseOrderRepo *repository.PurchaseOrderRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository, shippingCompanyRepo *repository.ShippingCompanyRepository, internationalImportRepo *repository.InternationalImportRepository, expenseRepo *repository.ExpenseRepository) http.Handler {
 	router := mux.NewRouter()
 
 	// Initialize handlers test2
@@ -25,7 +25,8 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	purchaseOrderHandler := handlers.NewPurchaseOrderHandler(purchaseOrderRepo, supplierRepo, productRepo)
 	migrationHandler := handlers.NewMigrationHandler(customerRepo, productRepo, purchaseRepo, saleRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
-	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo)
+	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo, expenseRepo)
+	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
 	shippingCompanyHandler := handlers.NewShippingCompanyHandler(shippingCompanyRepo)
 	internationalImportHandler := handlers.NewInternationalImportHandler(internationalImportRepo, supplierRepo, shippingCompanyRepo, productRepo, purchaseRepo, stockAdjustmentRepo)
 
@@ -116,6 +117,14 @@ func SetupRoutes(productRepo *repository.ProductRepository, customerRepo *reposi
 	api.HandleFunc("/migration/sales/csv", migrationHandler.MigrateSalesFromCSV).Methods("POST")
 	api.HandleFunc("/migration/sales/template", migrationHandler.GetSaleCSVTemplate).Methods("GET")
 	api.HandleFunc("/migration/status", migrationHandler.GetMigrationStatus).Methods("GET")
+
+	// Expense routes
+	api.HandleFunc("/expenses", expenseHandler.GetExpenses).Methods("GET")
+	api.HandleFunc("/expenses", expenseHandler.CreateExpense).Methods("POST")
+	api.HandleFunc("/expenses/categories", expenseHandler.GetCategories).Methods("GET")
+	api.HandleFunc("/expenses/{id}", expenseHandler.GetExpense).Methods("GET")
+	api.HandleFunc("/expenses/{id}", expenseHandler.UpdateExpense).Methods("PUT")
+	api.HandleFunc("/expenses/{id}", expenseHandler.DeleteExpense).Methods("DELETE")
 
 	// Export routes
 	api.HandleFunc("/export/email", exportHandler.ExportAndSendEmail).Methods("POST")
