@@ -67,6 +67,53 @@ func ApplyStockAdjustment(
 	}
 }
 
+// ReverseStockAdjustment reverses a previous stock adjustment (for edit/delete Purchase/Sale)
+// originalAdjustmentType is the type that was originally applied:
+//   - AdjustmentTypeAdd (purchase): Purchased -= qty, Remaining -= qty
+//   - AdjustmentTypeReduce (sale): Sold -= qty, Remaining += qty
+func ReverseStockAdjustment(
+	product *models.Product,
+	originalAdjustmentType models.StockAdjustmentType,
+	stockType models.StockType,
+	quantity int,
+) {
+	if stockType == models.StockTypeActualStock {
+		if originalAdjustmentType == models.AdjustmentTypeAdd {
+			product.Stock.ActualStock -= quantity
+		} else {
+			product.Stock.ActualStock += quantity
+		}
+		return
+	}
+
+	var stockInfo *models.StockInfo
+	if stockType == models.StockTypeVAT {
+		stockInfo = &product.Stock.VAT
+	} else {
+		stockInfo = &product.Stock.NonVAT
+	}
+
+	if originalAdjustmentType == models.AdjustmentTypeAdd {
+		// Reverse ของ "ซื้อเข้า": ลด Purchased, ลด Remaining
+		if stockInfo.Purchased >= quantity {
+			stockInfo.Purchased -= quantity
+		} else {
+			stockInfo.Purchased = 0
+		}
+		stockInfo.Remaining -= quantity
+		product.Stock.ActualStock -= quantity
+	} else {
+		// Reverse ของ "ขายออก": ลด Sold, เพิ่ม Remaining
+		if stockInfo.Sold >= quantity {
+			stockInfo.Sold -= quantity
+		} else {
+			stockInfo.Sold = 0
+		}
+		stockInfo.Remaining += quantity
+		product.Stock.ActualStock += quantity
+	}
+}
+
 // ApplyManualStockAdjustment applies manual stock adjustment (from UI "แก้ไขสต็อก")
 // This modifies InitialStock and Remaining (not Purchased/Sold)
 func ApplyManualStockAdjustment(
@@ -357,18 +404,20 @@ func (h *StockAdjustmentHandler) DeleteStockAdjustment(w http.ResponseWriter, r 
 		return
 	}
 
-	// Reverse the stock adjustment
-	// If it was "add", we need to "reduce"
-	// If it was "reduce", we need to "add"
-	var reverseType models.StockAdjustmentType
-	if adjustment.AdjustmentType == models.AdjustmentTypeAdd {
-		reverseType = models.AdjustmentTypeReduce
+	// Reverse the stock adjustment based on source type
+	if adjustment.SourceType == models.SourceTypeAdjustment || adjustment.SourceType == models.SourceTypeMigration {
+		// Manual/migration adjustments modified InitialStock, so reverse with ApplyManualStockAdjustment
+		var reverseType models.StockAdjustmentType
+		if adjustment.AdjustmentType == models.AdjustmentTypeAdd {
+			reverseType = models.AdjustmentTypeReduce
+		} else {
+			reverseType = models.AdjustmentTypeAdd
+		}
+		ApplyManualStockAdjustment(product, reverseType, adjustment.StockType, adjustment.Quantity)
 	} else {
-		reverseType = models.AdjustmentTypeAdd
+		// Purchase/Sale adjustments modified Purchased/Sold
+		ReverseStockAdjustment(product, adjustment.AdjustmentType, adjustment.StockType, adjustment.Quantity)
 	}
-
-	// Apply reverse adjustment
-	ApplyStockAdjustment(product, reverseType, adjustment.StockType, adjustment.Quantity)
 
 	// Update product
 	product.UpdatedAt = utils.NowInThailand()

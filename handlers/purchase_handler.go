@@ -232,33 +232,51 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Rollback price updates and preform stock from old purchase items
+	// Rollback stock, price updates, and preform stock from old purchase items
+	purchaseID := existingPurchase.ID.Hex()
+	purchaseCode := existingPurchase.PurchaseCode
 	for _, oldItem := range existingPurchase.Items {
 		product, err := h.productRepo.GetByID(ctx, oldItem.ProductID)
 		if err == nil {
-			// Calculate effective unit price (including preform cost if any)
 			effectiveUnitPrice := oldItem.UnitPrice
 			if oldItem.PreformUnitPrice != nil {
 				effectiveUnitPrice += *oldItem.PreformUnitPrice
 			}
 			product.RollbackPriceUpdate(effectiveUnitPrice, existingPurchase.IsVAT, true, oldItem.Quantity)
+
+			var stockType models.StockType
+			if existingPurchase.IsVAT {
+				stockType = models.StockTypeVAT
+			} else {
+				stockType = models.StockTypeNonVAT
+			}
+
+			ReverseStockAdjustment(product, models.AdjustmentTypeAdd, stockType, oldItem.Quantity)
 			h.productRepo.Update(ctx, oldItem.ProductID, product)
+
+			notes := fmt.Sprintf("ย้อนคืนสต็อคจากการแก้ไขรายการซื้อ %s", purchaseCode)
+			RecordStockChange(ctx, h.stockAdjustmentRepo, product,
+				models.SourceTypePurchase, &purchaseID, &purchaseCode,
+				models.AdjustmentTypeReduce, stockType, oldItem.Quantity, &notes)
 		}
 
 		// Rollback preform stock if used
 		if oldItem.PreformProductID != nil && *oldItem.PreformProductID != "" {
 			preformProduct, err := h.productRepo.GetByID(ctx, *oldItem.PreformProductID)
 			if err == nil {
-				// Determine stock type based on VAT status
 				var stockType models.StockType
 				if existingPurchase.IsVAT {
 					stockType = models.StockTypeVAT
 				} else {
 					stockType = models.StockTypeNonVAT
 				}
-				// Restore preform stock (rollback the deduction)
-				ApplyStockAdjustment(preformProduct, models.AdjustmentTypeAdd, stockType, oldItem.Quantity)
+				ReverseStockAdjustment(preformProduct, models.AdjustmentTypeReduce, stockType, oldItem.Quantity)
 				h.productRepo.Update(ctx, *oldItem.PreformProductID, preformProduct)
+
+				notes := fmt.Sprintf("ย้อนคืนสต็อค preform จากการแก้ไขรายการซื้อ %s", purchaseCode)
+				RecordStockChange(ctx, h.stockAdjustmentRepo, preformProduct,
+					models.SourceTypePurchase, &purchaseID, &purchaseCode,
+					models.AdjustmentTypeAdd, stockType, oldItem.Quantity, &notes)
 			}
 		}
 	}
@@ -296,36 +314,52 @@ func (h *PurchaseHandler) DeletePurchase(w http.ResponseWriter, r *http.Request)
 	}
 	id := pathParts[len(pathParts)-1]
 
-	// Get existing purchase to rollback price updates
+	// Get existing purchase to rollback stock and price updates
 	existingPurchase, err := h.purchaseRepo.GetByID(ctx, id)
 	if err == nil {
-		// Rollback price updates and preform stock from purchase items
+		purchaseID := existingPurchase.ID.Hex()
+		purchaseCode := existingPurchase.PurchaseCode
 		for _, item := range existingPurchase.Items {
 			product, err := h.productRepo.GetByID(ctx, item.ProductID)
 			if err == nil {
-				// Calculate effective unit price (including preform cost if any)
 				effectiveUnitPrice := item.UnitPrice
 				if item.PreformUnitPrice != nil {
 					effectiveUnitPrice += *item.PreformUnitPrice
 				}
 				product.RollbackPriceUpdate(effectiveUnitPrice, existingPurchase.IsVAT, true, item.Quantity)
+
+				var stockType models.StockType
+				if existingPurchase.IsVAT {
+					stockType = models.StockTypeVAT
+				} else {
+					stockType = models.StockTypeNonVAT
+				}
+
+				ReverseStockAdjustment(product, models.AdjustmentTypeAdd, stockType, item.Quantity)
 				h.productRepo.Update(ctx, item.ProductID, product)
+
+				notes := fmt.Sprintf("ย้อนคืนสต็อคจากการลบรายการซื้อ %s", purchaseCode)
+				RecordStockChange(ctx, h.stockAdjustmentRepo, product,
+					models.SourceTypePurchase, &purchaseID, &purchaseCode,
+					models.AdjustmentTypeReduce, stockType, item.Quantity, &notes)
 			}
 
-			// Rollback preform stock if used
 			if item.PreformProductID != nil && *item.PreformProductID != "" {
 				preformProduct, err := h.productRepo.GetByID(ctx, *item.PreformProductID)
 				if err == nil {
-					// Determine stock type based on VAT status
 					var stockType models.StockType
 					if existingPurchase.IsVAT {
 						stockType = models.StockTypeVAT
 					} else {
 						stockType = models.StockTypeNonVAT
 					}
-					// Restore preform stock (rollback the deduction)
-					ApplyStockAdjustment(preformProduct, models.AdjustmentTypeAdd, stockType, item.Quantity)
+					ReverseStockAdjustment(preformProduct, models.AdjustmentTypeReduce, stockType, item.Quantity)
 					h.productRepo.Update(ctx, *item.PreformProductID, preformProduct)
+
+					notes := fmt.Sprintf("ย้อนคืนสต็อค preform จากการลบรายการซื้อ %s", purchaseCode)
+					RecordStockChange(ctx, h.stockAdjustmentRepo, preformProduct,
+						models.SourceTypePurchase, &purchaseID, &purchaseCode,
+						models.AdjustmentTypeAdd, stockType, item.Quantity, &notes)
 				}
 			}
 		}

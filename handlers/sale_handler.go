@@ -265,7 +265,9 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Restore stock and rollback price updates for old items
+	// Reverse stock and rollback price updates for old items
+	saleID := existingSale.ID.Hex()
+	saleCode := existingSale.SaleCode
 	for _, item := range existingSale.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err == nil {
@@ -275,11 +277,14 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 			} else {
 				stockType = models.StockTypeNonVAT
 			}
-			// Restore stock by adding back (reverse the reduce operation)
-			ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, item.Quantity)
-			// Rollback price update
+			ReverseStockAdjustment(product, models.AdjustmentTypeReduce, stockType, item.Quantity)
 			product.RollbackPriceUpdate(item.UnitPrice, existingSale.IsVAT, false, item.Quantity)
 			h.productRepo.Update(ctx, item.ProductID, product)
+
+			notes := fmt.Sprintf("ย้อนคืนสต็อคจากการแก้ไขรายการขาย %s", saleCode)
+			RecordStockChange(ctx, h.stockAdjustmentRepo, product,
+				models.SourceTypeSale, &saleID, &saleCode,
+				models.AdjustmentTypeAdd, stockType, item.Quantity, &notes)
 		}
 	}
 
@@ -294,10 +299,8 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Update sale price using new UpdatePrice method with quantity
-		product.UpdatePrice(item.UnitPrice, existingSale.IsVAT, false, item.Quantity) // false = isSale
+		product.UpdatePrice(item.UnitPrice, existingSale.IsVAT, false, item.Quantity)
 
-		// Determine stock type based on VAT status
 		var stockType models.StockType
 		if existingSale.IsVAT {
 			stockType = models.StockTypeVAT
@@ -305,14 +308,19 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 			stockType = models.StockTypeNonVAT
 		}
 
-		// Apply stock adjustment using centralized stock management logic
 		ApplyStockAdjustment(product, models.AdjustmentTypeReduce, stockType, item.Quantity)
 
-		// Update product
 		if err := h.productRepo.Update(ctx, item.ProductID, product); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to update product stock: %s", item.ProductID), http.StatusInternalServerError)
 			return
 		}
+
+		newSaleID := existingSale.ID.Hex()
+		newSaleCode := existingSale.SaleCode
+		notes := fmt.Sprintf("ตัดสต็อคจากรายการขาย %s (แก้ไข)", newSaleCode)
+		RecordStockChange(ctx, h.stockAdjustmentRepo, product,
+			models.SourceTypeSale, &newSaleID, &newSaleCode,
+			models.AdjustmentTypeReduce, stockType, item.Quantity, &notes)
 	}
 
 	// Save updated sale
@@ -343,7 +351,9 @@ func (h *SaleHandler) DeleteSale(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Restore stock and rollback price updates for all items
+	// Reverse stock and rollback price updates for all items
+	saleID := existingSale.ID.Hex()
+	saleCode := existingSale.SaleCode
 	for _, item := range existingSale.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err == nil {
@@ -353,11 +363,14 @@ func (h *SaleHandler) DeleteSale(w http.ResponseWriter, r *http.Request) {
 			} else {
 				stockType = models.StockTypeNonVAT
 			}
-			// Restore stock by adding back (reverse the reduce operation)
-			ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, item.Quantity)
-			// Rollback price update
+			ReverseStockAdjustment(product, models.AdjustmentTypeReduce, stockType, item.Quantity)
 			product.RollbackPriceUpdate(item.UnitPrice, existingSale.IsVAT, false, item.Quantity)
 			h.productRepo.Update(ctx, item.ProductID, product)
+
+			notes := fmt.Sprintf("ย้อนคืนสต็อคจากการลบรายการขาย %s", saleCode)
+			RecordStockChange(ctx, h.stockAdjustmentRepo, product,
+				models.SourceTypeSale, &saleID, &saleCode,
+				models.AdjustmentTypeAdd, stockType, item.Quantity, &notes)
 		}
 	}
 
