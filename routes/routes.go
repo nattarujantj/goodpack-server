@@ -50,6 +50,9 @@ func SetupRoutes(
 	// ── Public routes (no auth required) ──
 	router.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/health", healthCheck).Methods("GET")
+	router.HandleFunc("/api/config/categories", productHandler.GetConfigCategories).Methods("GET")
+	router.HandleFunc("/api/config/colors", productHandler.GetConfigColors).Methods("GET")
+	router.HandleFunc("/api/config/accounts", productHandler.GetConfigAccounts).Methods("GET")
 
 	// ── Protected routes (auth required) ──
 	api := router.PathPrefix("/api").Subrouter()
@@ -84,9 +87,6 @@ func SetupRoutes(
 
 	// Categories routes
 	api.HandleFunc("/categories", productHandler.GetCategories).Methods("GET")
-	api.HandleFunc("/config/categories", productHandler.GetConfigCategories).Methods("GET")
-	api.HandleFunc("/config/colors", productHandler.GetConfigColors).Methods("GET")
-	api.HandleFunc("/config/accounts", productHandler.GetConfigAccounts).Methods("GET")
 
 	// Customer routes
 	api.HandleFunc("/customers", customerHandler.GetCustomers).Methods("GET")
