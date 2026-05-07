@@ -3,6 +3,9 @@ package routes
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -164,9 +167,8 @@ func SetupRoutes(
 	// Static file serving for uploaded images
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads/"))))
 
-	// Static file serving for Flutter web app
-	flutterFS := http.FileServer(http.Dir("web/"))
-	router.PathPrefix("/").Handler(noCacheForHTML(flutterFS))
+	// Static file serving for Flutter web app with SPA fallback and correct cache headers
+	router.PathPrefix("/").Handler(flutterCacheMiddleware(spaHandler("web/")))
 
 	// CORS configuration
 	c := cors.New(cors.Options{
@@ -180,15 +182,57 @@ func SetupRoutes(
 	return handler
 }
 
-func noCacheForHTML(next http.Handler) http.Handler {
+// noCacheEntryPoints is the set of Flutter entry-point files that must never be cached.
+var noCacheEntryPoints = map[string]bool{
+	"/":                          true,
+	"/index.html":                true,
+	"/flutter_service_worker.js": true,
+	"/flutter_bootstrap.js":      true,
+	"/manifest.json":             true,
+	"/main.dart.js":              true,
+}
+
+// flutterCacheMiddleware sets correct Cache-Control headers for Flutter web assets.
+// Entry-point files must not be cached; hashed/versioned assets are safe to cache long-term.
+func flutterCacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/" || path == "/index.html" || path == "/flutter_service_worker.js" || path == "/flutter_bootstrap.js" {
+		if noCacheEntryPoints[path] {
 			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 			w.Header().Set("Pragma", "no-cache")
 			w.Header().Set("Expires", "0")
+		} else if isHashedAsset(path) {
+			// Flutter uses content-hashed filenames for all versioned assets — safe to cache forever.
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+// isHashedAsset returns true for static asset extensions produced by Flutter build.
+func isHashedAsset(path string) bool {
+	staticExts := []string{".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2", ".ttf", ".svg"}
+	for _, ext := range staticExts {
+		if strings.HasSuffix(path, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+// spaHandler serves Flutter web files with SPA fallback:
+// if the requested file doesn't exist on disk, it serves index.html so Flutter's
+// router can handle the path client-side.
+func spaHandler(dir string) http.Handler {
+	fs := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
+		_, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+			return
+		}
+		fs.ServeHTTP(w, r)
 	})
 }
 
