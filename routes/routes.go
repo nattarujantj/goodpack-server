@@ -14,6 +14,7 @@ import (
 	"goodpack-server/handlers"
 	"goodpack-server/middleware"
 	"goodpack-server/repository"
+	"goodpack-server/services"
 	"goodpack-server/utils"
 )
 
@@ -30,10 +31,14 @@ func SetupRoutes(
 	internationalImportRepo *repository.InternationalImportRepository,
 	expenseRepo *repository.ExpenseRepository,
 	userRepo *repository.UserRepository,
+	inventorySnapshotRepo *repository.InventorySnapshotRepository,
 	jwtSecret string,
 	jwtExpiry time.Duration,
 ) http.Handler {
 	router := mux.NewRouter()
+
+	// Initialize services that are shared between handlers
+	snapshotService := services.NewInventorySnapshotService(inventorySnapshotRepo, productRepo)
 
 	// Initialize handlers
 	productHandler := handlers.NewProductHandler(productRepo)
@@ -44,11 +49,12 @@ func SetupRoutes(
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
 	purchaseOrderHandler := handlers.NewPurchaseOrderHandler(purchaseOrderRepo, supplierRepo, productRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
-	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo, expenseRepo)
+	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo, expenseRepo, snapshotService)
 	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
 	shippingCompanyHandler := handlers.NewShippingCompanyHandler(shippingCompanyRepo)
 	internationalImportHandler := handlers.NewInternationalImportHandler(internationalImportRepo, supplierRepo, shippingCompanyRepo, productRepo, purchaseRepo, stockAdjustmentRepo)
 	authHandler := handlers.NewAuthHandler(userRepo, jwtSecret, jwtExpiry)
+	inventorySnapshotHandler := handlers.NewInventorySnapshotHandler(snapshotService)
 
 	// ── Public routes (no auth required) ──
 	router.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
@@ -149,6 +155,12 @@ func SetupRoutes(
 
 	// Export routes
 	api.HandleFunc("/export/email", exportHandler.ExportAndSendEmail).Methods("POST")
+
+	// Inventory Snapshot routes
+	api.HandleFunc("/inventory-snapshots", inventorySnapshotHandler.ListSnapshots).Methods("GET")
+	api.HandleFunc("/inventory-snapshots", inventorySnapshotHandler.CreateSnapshot).Methods("POST")
+	api.HandleFunc("/inventory-snapshots/{year}/{month}", inventorySnapshotHandler.GetSnapshot).Methods("GET")
+	api.HandleFunc("/inventory-snapshots/{year}/{month}", inventorySnapshotHandler.UpdateSnapshot).Methods("PUT")
 
 	// Shipping Company routes
 	api.HandleFunc("/shipping-companies", shippingCompanyHandler.GetAll).Methods("GET")

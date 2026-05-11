@@ -11,6 +11,7 @@ import (
 	"goodpack-server/models"
 	"goodpack-server/repository"
 	"goodpack-server/routes"
+	"goodpack-server/services"
 	"goodpack-server/utils"
 )
 
@@ -35,6 +36,7 @@ func main() {
 	internationalImportRepo := repository.NewInternationalImportRepository(mongoDB.GetCollection("international_imports"))
 	expenseRepo := repository.NewExpenseRepository(mongoDB.GetCollection("expenses"))
 	userRepo := repository.NewUserRepository(mongoDB.GetCollection("users"))
+	inventorySnapshotRepo := repository.NewInventorySnapshotRepository(mongoDB.GetCollection("inventory_snapshots"))
 
 	autoSeedSuperAdmin(cfg, userRepo)
 
@@ -44,12 +46,16 @@ func main() {
 		jwtExpiry = 24 * time.Hour
 	}
 
+	// Start monthly auto-snapshot scheduler
+	snapshotSvc := services.NewInventorySnapshotService(inventorySnapshotRepo, productRepo)
+	services.StartSnapshotScheduler(snapshotSvc)
+
 	router := routes.SetupRoutes(
 		productRepo, customerRepo, supplierRepo,
 		purchaseRepo, saleRepo, quotationRepo,
 		purchaseOrderRepo, stockAdjustmentRepo,
 		shippingCompanyRepo, internationalImportRepo,
-		expenseRepo, userRepo,
+		expenseRepo, userRepo, inventorySnapshotRepo,
 		cfg.JWTSecret, jwtExpiry,
 	)
 

@@ -13,22 +13,30 @@ import (
 )
 
 type ExportHandler struct {
-	purchaseRepo *repository.PurchaseRepository
-	saleRepo     *repository.SaleRepository
-	customerRepo *repository.CustomerRepository
-	expenseRepo  *repository.ExpenseRepository
-	excelService *services.ExcelService
-	emailService *services.EmailService
+	purchaseRepo    *repository.PurchaseRepository
+	saleRepo        *repository.SaleRepository
+	customerRepo    *repository.CustomerRepository
+	expenseRepo     *repository.ExpenseRepository
+	snapshotService *services.InventorySnapshotService
+	excelService    *services.ExcelService
+	emailService    *services.EmailService
 }
 
-func NewExportHandler(purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository, expenseRepo *repository.ExpenseRepository) *ExportHandler {
+func NewExportHandler(
+	purchaseRepo *repository.PurchaseRepository,
+	saleRepo *repository.SaleRepository,
+	customerRepo *repository.CustomerRepository,
+	expenseRepo *repository.ExpenseRepository,
+	snapshotService *services.InventorySnapshotService,
+) *ExportHandler {
 	return &ExportHandler{
-		purchaseRepo: purchaseRepo,
-		saleRepo:     saleRepo,
-		customerRepo: customerRepo,
-		expenseRepo:  expenseRepo,
-		excelService: services.NewExcelService(),
-		emailService: services.NewEmailService(),
+		purchaseRepo:    purchaseRepo,
+		saleRepo:        saleRepo,
+		customerRepo:    customerRepo,
+		expenseRepo:     expenseRepo,
+		snapshotService: snapshotService,
+		excelService:    services.NewExcelService(),
+		emailService:    services.NewEmailService(),
 	}
 }
 
@@ -52,14 +60,15 @@ func (h *ExportHandler) enrichPurchaseWithSupplierData(purchase *models.Purchase
 	if purchase.SupplierID == "" {
 		return
 	}
-	// Note: For export we don't need to fetch supplier data as it's already in the purchase
-	// This function is kept for compatibility but can be removed if not needed
 }
 
 type ExportEmailRequest struct {
-	Month  int      `json:"month"`
-	Year   int      `json:"year"`
-	Emails []string `json:"emails"`
+	Month            int      `json:"month"`
+	Year             int      `json:"year"`
+	Emails           []string `json:"emails"`
+	IncludeInventory bool     `json:"includeInventory"`
+	InventoryMonth   int      `json:"inventoryMonth"` // 0 = same as Month
+	InventoryYear    int      `json:"inventoryYear"`  // 0 = same as Year
 }
 
 type ExportEmailResponse struct {
@@ -97,7 +106,7 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	log.Printf("📤 Export request: Month=%d, Year=%d, Emails=%v", req.Month, req.Year, req.Emails)
+	log.Printf("📤 Export request: Month=%d, Year=%d, Emails=%v, IncludeInventory=%v", req.Month, req.Year, req.Emails, req.IncludeInventory)
 
 	ctx := r.Context()
 
@@ -156,8 +165,27 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 
 	log.Printf("📊 Found %d purchases, %d sales, %d expenses for %d/%d", len(purchases), len(sales), len(expenses), req.Month, req.Year)
 
+	// Optionally fetch inventory snapshot
+	var snapshot *models.InventorySnapshot
+	if req.IncludeInventory && h.snapshotService != nil {
+		invMonth := req.Month
+		invYear := req.Year
+		if req.InventoryMonth > 0 {
+			invMonth = req.InventoryMonth
+		}
+		if req.InventoryYear > 0 {
+			invYear = req.InventoryYear
+		}
+		snap, err := h.snapshotService.GetSnapshot(ctx, invMonth, invYear)
+		if err != nil {
+			log.Printf("⚠️ Failed to fetch inventory snapshot: %v", err)
+		} else {
+			snapshot = snap
+		}
+	}
+
 	// Generate Excel file
-	excelBuffer, err := h.excelService.GeneratePurchaseSaleExcel(purchases, sales, expenses, req.Month, req.Year)
+	excelBuffer, err := h.excelService.GeneratePurchaseSaleExcel(purchases, sales, expenses, req.Month, req.Year, snapshot)
 	if err != nil {
 		log.Printf("❌ Failed to generate Excel: %v", err)
 		sendErrorResponse(w, "Failed to generate Excel file")

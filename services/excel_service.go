@@ -16,8 +16,9 @@ func NewExcelService() *ExcelService {
 	return &ExcelService{}
 }
 
-// GeneratePurchaseSaleExcel creates an Excel file with 5 sheets: ขาย VAT, ขาย Non-VAT, ซื้อ VAT, ซื้อ Non-VAT, ค่าใช้จ่าย
-func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sales []models.Sale, expenses []models.Expense, month int, year int) (*bytes.Buffer, error) {
+// GeneratePurchaseSaleExcel creates an Excel file with 5 sheets (or 6 if snapshot is provided):
+// ขาย VAT, ขาย Non-VAT, ซื้อ VAT, ซื้อ Non-VAT, ค่าใช้จ่าย, สินค้าคงคลัง (optional)
+func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sales []models.Sale, expenses []models.Expense, month int, year int, snapshot *models.InventorySnapshot) (*bytes.Buffer, error) {
 	f := excelize.NewFile()
 	defer f.Close()
 
@@ -65,6 +66,11 @@ func (s *ExcelService) GeneratePurchaseSaleExcel(purchases []models.Purchase, sa
 
 	f.NewSheet("ค่าใช้จ่าย")
 	s.createExpenseSheet(f, "ค่าใช้จ่าย", expenses, monthName, buddhistYear)
+
+	if snapshot != nil {
+		f.NewSheet("สินค้าคงคลัง")
+		s.createInventorySheet(f, "สินค้าคงคลัง", snapshot, monthName, buddhistYear)
+	}
 
 	// Save to buffer
 	buf, err := f.WriteToBuffer()
@@ -526,4 +532,132 @@ func (s *ExcelService) createExpenseSheet(f *excelize.File, sheet string, expens
 // Helper function to format time as Thai date
 func FormatThaiDate(t time.Time) string {
 	return t.Format("02/01/2006")
+}
+
+func (s *ExcelService) createInventorySheet(f *excelize.File, sheet string, snapshot *models.InventorySnapshot, monthName string, buddhistYear int) {
+	f.SetColWidth(sheet, "A", "A", 5)  // ลำดับ
+	f.SetColWidth(sheet, "B", "B", 12) // รหัส SKU
+	f.SetColWidth(sheet, "C", "C", 15) // รหัสสินค้า
+	f.SetColWidth(sheet, "D", "D", 35) // ชื่อสินค้า
+	f.SetColWidth(sheet, "E", "E", 18) // หมวดหมู่
+	f.SetColWidth(sheet, "F", "F", 12) // สี
+	f.SetColWidth(sheet, "G", "G", 12) // ขนาด
+	f.SetColWidth(sheet, "H", "H", 15) // คงเหลือ VAT
+	f.SetColWidth(sheet, "I", "I", 18) // คงเหลือ Non-VAT
+	f.SetColWidth(sheet, "J", "J", 15) // คงเหลือจริง
+
+	titleStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 14},
+		Alignment: &excelize.Alignment{Horizontal: "center"},
+	})
+
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7030A0"}}, // Purple for inventory
+		Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center"},
+		Border: []excelize.Border{
+			{Type: "left", Color: "000000", Style: 1},
+			{Type: "top", Color: "000000", Style: 1},
+			{Type: "bottom", Color: "000000", Style: 1},
+			{Type: "right", Color: "000000", Style: 1},
+		},
+	})
+
+	dataStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Size: 10},
+		Alignment: &excelize.Alignment{Vertical: "center", WrapText: true},
+		Border: []excelize.Border{
+			{Type: "left", Color: "000000", Style: 1},
+			{Type: "top", Color: "000000", Style: 1},
+			{Type: "bottom", Color: "000000", Style: 1},
+			{Type: "right", Color: "000000", Style: 1},
+		},
+	})
+
+	numberStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Size: 10},
+		Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+		NumFmt:    1, // integer
+		Border: []excelize.Border{
+			{Type: "left", Color: "000000", Style: 1},
+			{Type: "top", Color: "000000", Style: 1},
+			{Type: "bottom", Color: "000000", Style: 1},
+			{Type: "right", Color: "000000", Style: 1},
+		},
+	})
+
+	summaryStyle, _ := f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 10, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"7030A0"}},
+		Alignment: &excelize.Alignment{Horizontal: "right", Vertical: "center"},
+		NumFmt:    1,
+		Border: []excelize.Border{
+			{Type: "left", Color: "000000", Style: 1},
+			{Type: "top", Color: "000000", Style: 1},
+			{Type: "bottom", Color: "000000", Style: 1},
+			{Type: "right", Color: "000000", Style: 1},
+		},
+	})
+
+	// Title row
+	f.MergeCell(sheet, "A1", "J1")
+	f.SetCellValue(sheet, "A1", fmt.Sprintf("สินค้าคงคลัง ณ สิ้นเดือน %s %d (บันทึก: %s)", monthName, buddhistYear, snapshot.SnapshotDate.Format("02/01/2006 15:04:05")))
+	f.SetCellStyle(sheet, "A1", "J1", titleStyle)
+
+	// Header row
+	headers := []string{"ลำดับ", "รหัส SKU", "รหัสสินค้า", "ชื่อสินค้า", "หมวดหมู่", "สี", "ขนาด", "คงเหลือ VAT", "คงเหลือ Non-VAT", "คงเหลือจริง"}
+	for i, h := range headers {
+		cell := fmt.Sprintf("%c3", 'A'+i)
+		f.SetCellValue(sheet, cell, h)
+	}
+	f.SetCellStyle(sheet, "A3", "J3", headerStyle)
+
+	// Data rows
+	for i, p := range snapshot.Products {
+		row := i + 4
+		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), i+1)
+		f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), p.SKUID)
+		f.SetCellStyle(sheet, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), p.Code)
+		f.SetCellStyle(sheet, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), p.Name)
+		f.SetCellStyle(sheet, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), p.Category)
+		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), p.Color)
+		f.SetCellStyle(sheet, fmt.Sprintf("F%d", row), fmt.Sprintf("F%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("G%d", row), p.Size)
+		f.SetCellStyle(sheet, fmt.Sprintf("G%d", row), fmt.Sprintf("G%d", row), dataStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("H%d", row), p.VATRemaining)
+		f.SetCellStyle(sheet, fmt.Sprintf("H%d", row), fmt.Sprintf("H%d", row), numberStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("I%d", row), p.NonVATRemaining)
+		f.SetCellStyle(sheet, fmt.Sprintf("I%d", row), fmt.Sprintf("I%d", row), numberStyle)
+
+		f.SetCellValue(sheet, fmt.Sprintf("J%d", row), p.ActualStock)
+		f.SetCellStyle(sheet, fmt.Sprintf("J%d", row), fmt.Sprintf("J%d", row), numberStyle)
+	}
+
+	// Summary row
+	summaryRow := len(snapshot.Products) + 5
+	f.MergeCell(sheet, fmt.Sprintf("A%d", summaryRow), fmt.Sprintf("G%d", summaryRow))
+	f.SetCellValue(sheet, fmt.Sprintf("A%d", summaryRow), fmt.Sprintf("รวมทั้งหมด (%d รายการ)", snapshot.TotalProducts))
+	f.SetCellStyle(sheet, fmt.Sprintf("A%d", summaryRow), fmt.Sprintf("G%d", summaryRow), headerStyle)
+
+	f.SetCellValue(sheet, fmt.Sprintf("H%d", summaryRow), snapshot.TotalVATStock)
+	f.SetCellStyle(sheet, fmt.Sprintf("H%d", summaryRow), fmt.Sprintf("H%d", summaryRow), summaryStyle)
+
+	f.SetCellValue(sheet, fmt.Sprintf("I%d", summaryRow), snapshot.TotalNonVATStock)
+	f.SetCellStyle(sheet, fmt.Sprintf("I%d", summaryRow), fmt.Sprintf("I%d", summaryRow), summaryStyle)
+
+	f.SetCellValue(sheet, fmt.Sprintf("J%d", summaryRow), snapshot.TotalActualStock)
+	f.SetCellStyle(sheet, fmt.Sprintf("J%d", summaryRow), fmt.Sprintf("J%d", summaryRow), summaryStyle)
 }
