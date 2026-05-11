@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -24,10 +25,12 @@ func setJSONContentType(w http.ResponseWriter) {
 
 type ProductHandler struct {
 	repo         *repository.ProductRepository
+	purchaseRepo *repository.PurchaseRepository
+	saleRepo     *repository.SaleRepository
 	configLoader *config.ConfigLoader
 }
 
-func NewProductHandler(repo *repository.ProductRepository) *ProductHandler {
+func NewProductHandler(repo *repository.ProductRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository) *ProductHandler {
 	configLoader := config.NewConfigLoader()
 	if err := configLoader.LoadConfig(); err != nil {
 		// If config loading fails, continue with empty config
@@ -36,6 +39,8 @@ func NewProductHandler(repo *repository.ProductRepository) *ProductHandler {
 
 	return &ProductHandler{
 		repo:         repo,
+		purchaseRepo: purchaseRepo,
+		saleRepo:     saleRepo,
 		configLoader: configLoader,
 	}
 }
@@ -439,6 +444,152 @@ func (h *ProductHandler) ServeProductImage(w http.ResponseWriter, r *http.Reques
 
 	// Serve the file
 	http.ServeFile(w, r, filePath)
+}
+
+// GetProductPurchases returns paginated purchases that contain the given product.
+func (h *ProductHandler) GetProductPurchases(w http.ResponseWriter, r *http.Request) {
+	setJSONContentType(w)
+
+	vars := mux.Vars(r)
+	productID := vars["id"]
+
+	isVAT := r.URL.Query().Get("isVAT") != "false"
+	page, limit := 1, 10
+	if p := r.URL.Query().Get("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
+	purchases, total, err := h.purchaseRepo.GetByProductID(r.Context(), productID, isVAT, page, limit)
+	if err != nil {
+		http.Error(w, "Failed to get purchases", http.StatusInternalServerError)
+		return
+	}
+
+	items := make([]models.ProductTransactionItem, 0)
+	for _, p := range purchases {
+		for _, item := range p.Items {
+			if item.ProductID != productID {
+				continue
+			}
+			var totalVAT, grandTotal float64
+			if p.IsVAT {
+				if p.VATType == "inclusive" {
+					totalVAT = item.TotalPrice - (item.TotalPrice / 1.07)
+					grandTotal = item.TotalPrice
+				} else {
+					totalVAT = item.TotalPrice * 0.07
+					grandTotal = item.TotalPrice + totalVAT
+				}
+			} else {
+				grandTotal = item.TotalPrice
+			}
+			items = append(items, models.ProductTransactionItem{
+				ID:           p.ID.Hex(),
+				DocumentCode: p.PurchaseCode,
+				Date:         p.PurchaseDate,
+				PartnerName:  p.SupplierName,
+				Quantity:     item.Quantity,
+				UnitPrice:    item.UnitPrice,
+				TotalPrice:   item.TotalPrice,
+				TotalVAT:     totalVAT,
+				GrandTotal:   grandTotal,
+			})
+			break
+		}
+	}
+
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	json.NewEncoder(w).Encode(models.ProductTransactionPage{
+		Data:       items,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	})
+}
+
+// GetProductSales returns paginated sales that contain the given product.
+func (h *ProductHandler) GetProductSales(w http.ResponseWriter, r *http.Request) {
+	setJSONContentType(w)
+
+	vars := mux.Vars(r)
+	productID := vars["id"]
+
+	isVAT := r.URL.Query().Get("isVAT") != "false"
+	page, limit := 1, 10
+	if p := r.URL.Query().Get("page"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
+	sales, total, err := h.saleRepo.GetByProductID(r.Context(), productID, isVAT, page, limit)
+	if err != nil {
+		http.Error(w, "Failed to get sales", http.StatusInternalServerError)
+		return
+	}
+
+	items := make([]models.ProductTransactionItem, 0)
+	for _, s := range sales {
+		for _, item := range s.Items {
+			if item.ProductID != productID {
+				continue
+			}
+			var totalVAT, grandTotal float64
+			if s.IsVAT {
+				if s.VatType == "inclusive" {
+					totalVAT = item.TotalPrice - (item.TotalPrice / 1.07)
+					grandTotal = item.TotalPrice
+				} else {
+					totalVAT = item.TotalPrice * 0.07
+					grandTotal = item.TotalPrice + totalVAT
+				}
+			} else {
+				grandTotal = item.TotalPrice
+			}
+			items = append(items, models.ProductTransactionItem{
+				ID:           s.ID.Hex(),
+				DocumentCode: s.SaleCode,
+				Date:         s.SaleDate,
+				PartnerName:  s.CustomerName,
+				Quantity:     item.Quantity,
+				UnitPrice:    item.UnitPrice,
+				TotalPrice:   item.TotalPrice,
+				TotalVAT:     totalVAT,
+				GrandTotal:   grandTotal,
+			})
+			break
+		}
+	}
+
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	if totalPages == 0 {
+		totalPages = 1
+	}
+
+	json.NewEncoder(w).Encode(models.ProductTransactionPage{
+		Data:       items,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	})
 }
 
 // DeleteProductImage deletes a product image

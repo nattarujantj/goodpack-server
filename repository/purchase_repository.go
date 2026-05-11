@@ -119,6 +119,45 @@ func (r *PurchaseRepository) GetByPurchaseCode(ctx context.Context, purchaseCode
 	return &purchase, nil
 }
 
+func (r *PurchaseRepository) GetByProductID(
+	ctx context.Context,
+	productID string,
+	isVAT bool,
+	page, limit int,
+) ([]*models.Purchase, int64, error) {
+	filter := bson.M{
+		"items": bson.M{"$elemMatch": bson.M{"productId": productID}},
+		"isVAT": isVAT,
+	}
+
+	total, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "purchaseDate", Value: -1}}).
+		SetSkip(int64((page - 1) * limit)).
+		SetLimit(int64(limit))
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var purchases []*models.Purchase
+	for cursor.Next(ctx) {
+		var p models.Purchase
+		if err := cursor.Decode(&p); err != nil {
+			return nil, 0, err
+		}
+		purchases = append(purchases, &p)
+	}
+
+	return purchases, total, nil
+}
+
 // GetNextSequenceNumber gets the next sequence number for a given prefix
 func (r *PurchaseRepository) GetNextSequenceNumber(ctx context.Context, prefix string) (int, error) {
 	// Find the highest sequence number for this prefix
