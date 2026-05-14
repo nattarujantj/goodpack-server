@@ -41,7 +41,7 @@ func SetupRoutes(
 	snapshotService := services.NewInventorySnapshotService(inventorySnapshotRepo, productRepo)
 
 	// Initialize handlers
-	productHandler := handlers.NewProductHandler(productRepo)
+	productHandler := handlers.NewProductHandler(productRepo, purchaseRepo, saleRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo, saleRepo)
 	supplierHandler := handlers.NewSupplierHandler(supplierRepo, purchaseRepo)
 	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, supplierRepo, productRepo, stockAdjustmentRepo)
@@ -84,6 +84,8 @@ func SetupRoutes(
 	api.HandleFunc("/products/{id}/price", productHandler.UpdatePrice).Methods("PATCH")
 	api.HandleFunc("/products/{id}/image", productHandler.UploadProductImage).Methods("POST")
 	api.HandleFunc("/products/{id}/image", productHandler.DeleteProductImage).Methods("DELETE")
+	api.HandleFunc("/products/{id}/purchases", productHandler.GetProductPurchases).Methods("GET")
+	api.HandleFunc("/products/{id}/sales", productHandler.GetProductSales).Methods("GET")
 	api.HandleFunc("/products/category/{category}", productHandler.GetByCategory).Methods("GET")
 	api.HandleFunc("/products/low-stock", productHandler.GetLowStockProducts).Methods("GET")
 

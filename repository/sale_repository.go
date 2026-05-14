@@ -116,6 +116,41 @@ func (r *SaleRepository) GetBySaleCode(ctx context.Context, saleCode string) (*m
 	return &sale, nil
 }
 
+func (r *SaleRepository) GetByProductID(
+	ctx context.Context,
+	productID string,
+	isVAT bool,
+	page, limit int,
+) ([]models.Sale, int64, error) {
+	filter := bson.M{
+		"items": bson.M{"$elemMatch": bson.M{"productId": productID}},
+		"isVAT": isVAT,
+	}
+
+	total, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "saleDate", Value: -1}}).
+		SetSkip(int64((page - 1) * limit)).
+		SetLimit(int64(limit))
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var sales []models.Sale
+	if err = cursor.All(ctx, &sales); err != nil {
+		return nil, 0, err
+	}
+
+	return sales, total, nil
+}
+
 func (r *SaleRepository) GetNextSequenceNumber(ctx context.Context, prefix string) (int, error) {
 	// Find the highest sequence number for the given prefix
 	filter := bson.M{
