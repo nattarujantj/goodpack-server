@@ -41,7 +41,7 @@ func SetupRoutes(
 	snapshotService := services.NewInventorySnapshotService(inventorySnapshotRepo, productRepo)
 
 	// Initialize handlers
-	productHandler := handlers.NewProductHandler(productRepo, purchaseRepo, saleRepo)
+	productHandler := handlers.NewProductHandler(productRepo, purchaseRepo, saleRepo, customerRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo, saleRepo)
 	supplierHandler := handlers.NewSupplierHandler(supplierRepo, purchaseRepo)
 	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, supplierRepo, productRepo, stockAdjustmentRepo)

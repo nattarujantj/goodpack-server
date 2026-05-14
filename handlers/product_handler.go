@@ -27,10 +27,11 @@ type ProductHandler struct {
 	repo         *repository.ProductRepository
 	purchaseRepo *repository.PurchaseRepository
 	saleRepo     *repository.SaleRepository
+	customerRepo *repository.CustomerRepository
 	configLoader *config.ConfigLoader
 }
 
-func NewProductHandler(repo *repository.ProductRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository) *ProductHandler {
+func NewProductHandler(repo *repository.ProductRepository, purchaseRepo *repository.PurchaseRepository, saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository) *ProductHandler {
 	configLoader := config.NewConfigLoader()
 	if err := configLoader.LoadConfig(); err != nil {
 		// If config loading fails, continue with empty config
@@ -41,6 +42,7 @@ func NewProductHandler(repo *repository.ProductRepository, purchaseRepo *reposit
 		repo:         repo,
 		purchaseRepo: purchaseRepo,
 		saleRepo:     saleRepo,
+		customerRepo: customerRepo,
 		configLoader: configLoader,
 	}
 }
@@ -563,11 +565,20 @@ func (h *ProductHandler) GetProductSales(w http.ResponseWriter, r *http.Request)
 			} else {
 				grandTotal = item.TotalPrice
 			}
+			partnerName := s.CustomerName
+			if partnerName == "" {
+				if customer, err := h.customerRepo.GetByID(s.CustomerID); err == nil {
+					partnerName = customer.CompanyName
+					if partnerName == "" {
+						partnerName = customer.ContactName
+					}
+				}
+			}
 			items = append(items, models.ProductTransactionItem{
 				ID:           s.ID.Hex(),
 				DocumentCode: s.SaleCode,
 				Date:         s.SaleDate,
-				PartnerName:  s.CustomerName,
+				PartnerName:  partnerName,
 				Quantity:     item.Quantity,
 				UnitPrice:    item.UnitPrice,
 				TotalPrice:   item.TotalPrice,
