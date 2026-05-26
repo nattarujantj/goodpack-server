@@ -274,3 +274,49 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 		"purchase": purchase,
 	})
 }
+
+// UpdateCommissionPaid updates the commissionPaid status for a specific item.
+// URL: PATCH /api/international-imports/{id}/commission-paid
+func (h *InternationalImportHandler) UpdateCommissionPaid(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+	id := pathParts[len(pathParts)-2]
+
+	var req struct {
+		ItemIndex      int  `json:"itemIndex"`
+		CommissionPaid bool `json:"commissionPaid"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	imp, err := h.importRepo.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "International import not found", http.StatusNotFound)
+		return
+	}
+
+	if req.ItemIndex < 0 || req.ItemIndex >= len(imp.Items) {
+		http.Error(w, "Invalid item index", http.StatusBadRequest)
+		return
+	}
+
+	imp.Items[req.ItemIndex].CommissionPaid = req.CommissionPaid
+	imp.UpdatedAt = utils.NowInThailand()
+
+	if err := h.importRepo.Update(ctx, id, imp); err != nil {
+		http.Error(w, "Failed to update commission paid status", http.StatusInternalServerError)
+		return
+	}
+
+	h.enrichWithNames(imp)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(imp)
+}
