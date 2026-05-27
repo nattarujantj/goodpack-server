@@ -177,6 +177,7 @@ func SetupRoutes(
 	api.HandleFunc("/international-imports/{id}", internationalImportHandler.Update).Methods("PUT")
 	api.HandleFunc("/international-imports/{id}", internationalImportHandler.Delete).Methods("DELETE")
 	api.HandleFunc("/international-imports/{id}/create-purchase", internationalImportHandler.CreatePurchaseFromImport).Methods("POST")
+	api.HandleFunc("/international-imports/{id}/commission-paid", internationalImportHandler.UpdateCommissionPaid).Methods("PATCH")
 
 	// Static file serving for uploaded images
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads/"))))
