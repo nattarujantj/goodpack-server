@@ -32,7 +32,7 @@ type InternationalImport struct {
 	TotalProductCost  float64 `bson:"totalProductCost" json:"totalProductCost"`
 	GrandTotal        float64 `bson:"grandTotal" json:"grandTotal"`
 	// Status
-	Status        string  `bson:"status" json:"status"` // "draft" | "purchased"
+	Status        string  `bson:"status" json:"status"` // "draft" | "confirmed" | "purchased"
 	PurchaseID    *string `bson:"purchaseId,omitempty" json:"purchaseId,omitempty"`
 	PurchaseIsVAT *bool   `bson:"purchaseIsVAT,omitempty" json:"purchaseIsVAT,omitempty"`
 	Notes         *string `bson:"notes,omitempty" json:"notes,omitempty"`
