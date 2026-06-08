@@ -483,10 +483,10 @@ func (h *ProductHandler) GetProductPurchases(w http.ResponseWriter, r *http.Requ
 			var totalVAT, grandTotal float64
 			if p.IsVAT {
 				if p.VATType == "inclusive" {
-					totalVAT = item.TotalPrice - (item.TotalPrice / 1.07)
+					totalVAT = utils.RoundTo2(item.TotalPrice - (item.TotalPrice / 1.07))
 					grandTotal = item.TotalPrice
 				} else {
-					totalVAT = item.TotalPrice * 0.07
+					totalVAT = utils.RoundTo2(item.TotalPrice * 0.07)
 					grandTotal = item.TotalPrice + totalVAT
 				}
 			} else {
@@ -556,10 +556,10 @@ func (h *ProductHandler) GetProductSales(w http.ResponseWriter, r *http.Request)
 			var totalVAT, grandTotal float64
 			if s.IsVAT {
 				if s.VatType == "inclusive" {
-					totalVAT = item.TotalPrice - (item.TotalPrice / 1.07)
+					totalVAT = utils.RoundTo2(item.TotalPrice - (item.TotalPrice / 1.07))
 					grandTotal = item.TotalPrice
 				} else {
-					totalVAT = item.TotalPrice * 0.07
+					totalVAT = utils.RoundTo2(item.TotalPrice * 0.07)
 					grandTotal = item.TotalPrice + totalVAT
 				}
 			} else {

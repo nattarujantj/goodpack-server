@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"goodpack-server/models"
+	"goodpack-server/utils"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -366,13 +367,13 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 		if isVAT {
 			if sale.VatType == "inclusive" {
 				// VAT ใน: ราคาที่กรอกรวม VAT แล้ว
-				beforeVAT = itemsTotal / 1.07
-				vatAmount = itemsTotal - beforeVAT
+				beforeVAT = utils.RoundTo2(itemsTotal / 1.07)
+				vatAmount = utils.RoundTo2(itemsTotal - beforeVAT)
 				afterVAT = itemsTotal
 			} else {
 				// VAT นอก: ราคา + VAT 7%
 				beforeVAT = itemsTotal
-				vatAmount = itemsTotal * 0.07
+				vatAmount = utils.RoundTo2(itemsTotal * 0.07)
 				afterVAT = itemsTotal + vatAmount
 			}
 		} else {

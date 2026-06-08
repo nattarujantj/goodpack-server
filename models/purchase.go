@@ -110,11 +110,11 @@ func (pr *PurchaseRequest) ToPurchase() *Purchase {
 			// VAT ใน: ราคารวม VAT แล้ว ต้องถอด VAT ออก
 			// ราคาก่อน VAT = ราคารวม / 1.07
 			// VAT = ราคารวม - ราคาก่อน VAT
-			totalVAT = totalAmount - (totalAmount / 1.07)
+			totalVAT = utils.RoundTo2(totalAmount - (totalAmount / 1.07))
 			grandTotal = totalAmount // ราคาที่กรอกคือราคารวม VAT แล้ว
 		} else {
 			// VAT นอก (exclusive): ราคา + VAT 7%
-			totalVAT = totalAmount * 0.07
+			totalVAT = utils.RoundTo2(totalAmount * 0.07)
 			grandTotal = totalAmount + totalVAT
 		}
 	} else {
@@ -160,11 +160,11 @@ func (p *Purchase) UpdateFromRequest(pr *PurchaseRequest) {
 	if pr.IsVAT {
 		if pr.VATType == "inclusive" {
 			// VAT ใน: ราคารวม VAT แล้ว ต้องถอด VAT ออก
-			totalVAT = totalAmount - (totalAmount / 1.07)
+			totalVAT = utils.RoundTo2(totalAmount - (totalAmount / 1.07))
 			grandTotal = totalAmount
 		} else {
 			// VAT นอก (exclusive): ราคา + VAT 7%
-			totalVAT = totalAmount * 0.07
+			totalVAT = utils.RoundTo2(totalAmount * 0.07)
 			grandTotal = totalAmount + totalVAT
 		}
 	} else {
