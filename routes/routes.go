@@ -82,6 +82,7 @@ func SetupRoutes(
 	api.HandleFunc("/products/{id}", productHandler.DeleteProduct).Methods("DELETE")
 	api.HandleFunc("/products/{id}/stock", productHandler.UpdateStock).Methods("PATCH")
 	api.HandleFunc("/products/{id}/price", productHandler.UpdatePrice).Methods("PATCH")
+	api.HandleFunc("/products/{id}/status", productHandler.UpdateStatus).Methods("PATCH")
 	api.HandleFunc("/products/{id}/image", productHandler.UploadProductImage).Methods("POST")
 	api.HandleFunc("/products/{id}/image", productHandler.DeleteProductImage).Methods("DELETE")
 	api.HandleFunc("/products/{id}/purchases", productHandler.GetProductPurchases).Methods("GET")

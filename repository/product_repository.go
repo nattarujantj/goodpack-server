@@ -158,6 +158,25 @@ func (r *ProductRepository) UpdatePrice(ctx context.Context, id string, price mo
 	return err
 }
 
+func (r *ProductRepository) UpdateStatus(ctx context.Context, id string, status string) error {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": objectID},
+		bson.M{
+			"$set": bson.M{
+				"status":    status,
+				"updatedAt": utils.NowInThailand(),
+			},
+		},
+	)
+	return err
+}
+
 func (r *ProductRepository) GetBySKUID(ctx context.Context, skuID string) (*models.Product, error) {
 	var product models.Product
 	err := r.collection.FindOne(ctx, bson.M{"skuId": skuID}).Decode(&product)
