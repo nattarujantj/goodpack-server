@@ -67,6 +67,12 @@ type Stock struct {
 	ActualStock        int       `bson:"actualStock" json:"actualStock"`               // สินค้าคงเหลือจริง
 }
 
+// Product status values
+const (
+	ProductStatusActive   = "active"
+	ProductStatusInactive = "inactive"
+)
+
 // Product represents a product in the inventory
 type Product struct {
 	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
@@ -82,6 +88,7 @@ type Product struct {
 	QuantityPerPack int                `bson:"quantityPerPack" json:"quantityPerPack"` // จำนวน/ลัง(แพ็ค)
 	Price           Price              `bson:"price" json:"price"`                     // ข้อมูลราคา
 	Stock           Stock              `bson:"stock" json:"stock"`                     // ข้อมูลสต็อก
+	Status          string             `bson:"status" json:"status"`                   // สถานะสินค้า: "active" หรือ "inactive"
 	CreatedAt       time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt       time.Time          `bson:"updatedAt" json:"updatedAt"`
 }
@@ -109,6 +116,11 @@ type PriceUpdateRequest struct {
 	Price Price `json:"price"`
 }
 
+// StatusUpdateRequest represents the request body for updating product status
+type StatusUpdateRequest struct {
+	Status string `json:"status"`
+}
+
 // ToProduct converts ProductRequest to Product
 func (pr *ProductRequest) ToProduct() *Product {
 	now := utils.NowInThailand()
@@ -122,6 +134,7 @@ func (pr *ProductRequest) ToProduct() *Product {
 		QuantityPerPack: pr.QuantityPerPack,
 		Price:           pr.Price,
 		Stock:           pr.Stock,
+		Status:          ProductStatusActive,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}

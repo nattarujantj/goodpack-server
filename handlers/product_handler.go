@@ -170,6 +170,38 @@ func (h *ProductHandler) UpdateStock(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(product)
 }
 
+func (h *ProductHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	setJSONContentType(w)
+
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	var statusReq models.StatusUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&statusReq); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if statusReq.Status != models.ProductStatusActive && statusReq.Status != models.ProductStatusInactive {
+		http.Error(w, "Invalid status value (must be 'active' or 'inactive')", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.repo.UpdateStatus(r.Context(), id, statusReq.Status); err != nil {
+		http.Error(w, "Failed to update status", http.StatusInternalServerError)
+		return
+	}
+
+	// Get updated product
+	product, err := h.repo.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Product not found", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(product)
+}
+
 func (h *ProductHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
 	setJSONContentType(w)
 
