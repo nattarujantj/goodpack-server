@@ -320,3 +320,75 @@ func (h *InternationalImportHandler) UpdateCommissionPaid(w http.ResponseWriter,
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(imp)
 }
+
+// ConfirmImport changes an import's status from "draft" to "confirmed".
+func (h *InternationalImportHandler) ConfirmImport(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+	id := pathParts[len(pathParts)-2]
+
+	imp, err := h.importRepo.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "International import not found", http.StatusNotFound)
+		return
+	}
+
+	if imp.Status != "draft" {
+		http.Error(w, "Only draft imports can be confirmed", http.StatusBadRequest)
+		return
+	}
+
+	imp.Status = "confirmed"
+	imp.UpdatedAt = utils.NowInThailand()
+
+	if err := h.importRepo.Update(ctx, id, imp); err != nil {
+		http.Error(w, "Failed to confirm import", http.StatusInternalServerError)
+		return
+	}
+
+	h.enrichWithNames(imp)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(imp)
+}
+
+// UnconfirmImport reverts an import's status from "confirmed" back to "draft".
+func (h *InternationalImportHandler) UnconfirmImport(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+	id := pathParts[len(pathParts)-2]
+
+	imp, err := h.importRepo.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "International import not found", http.StatusNotFound)
+		return
+	}
+
+	if imp.Status != "confirmed" {
+		http.Error(w, "Only confirmed imports can be reverted to draft", http.StatusBadRequest)
+		return
+	}
+
+	imp.Status = "draft"
+	imp.UpdatedAt = utils.NowInThailand()
+
+	if err := h.importRepo.Update(ctx, id, imp); err != nil {
+		http.Error(w, "Failed to revert import", http.StatusInternalServerError)
+		return
+	}
+
+	h.enrichWithNames(imp)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(imp)
+}
