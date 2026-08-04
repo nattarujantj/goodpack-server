@@ -155,6 +155,8 @@ func SetupRoutes(
 	api.HandleFunc("/expenses/{id}", expenseHandler.GetExpense).Methods("GET")
 	api.HandleFunc("/expenses/{id}", expenseHandler.UpdateExpense).Methods("PUT")
 	api.HandleFunc("/expenses/{id}", expenseHandler.DeleteExpense).Methods("DELETE")
+	api.HandleFunc("/expenses/{id}/attachments", expenseHandler.UploadAttachment).Methods("POST")
+	api.HandleFunc("/expenses/{id}/attachments/{attachmentId}", expenseHandler.DeleteAttachment).Methods("DELETE")
 
 	// Export routes
 	api.HandleFunc("/export/email", exportHandler.ExportAndSendEmail).Methods("POST")
