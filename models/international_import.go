@@ -56,6 +56,7 @@ type ImportItem struct {
 	BoxLength            float64 `bson:"boxLength" json:"boxLength"`
 	BoxHeight            float64 `bson:"boxHeight" json:"boxHeight"`
 	CBM                  float64 `bson:"cbm" json:"cbm"`
+	CBMManual            bool    `bson:"cbmManual" json:"cbmManual"`
 	ShippingCostPerUnit  float64 `bson:"shippingCostPerUnit" json:"shippingCostPerUnit"`
 	Commission           float64 `bson:"commission" json:"commission"`
 	CommissionPaid       bool    `bson:"commissionPaid" json:"commissionPaid"`
@@ -88,13 +89,17 @@ func (r *InternationalImportRequest) CalculateItemCosts() {
 	totalCBM := 0.0
 	for i := range r.Items {
 		item := &r.Items[i]
-		ppb := item.PiecesPerBox
-		if ppb <= 0 {
-			ppb = 1
+		// When CBM was entered manually, keep the provided value and skip
+		// recomputing it from the box dimensions.
+		if !item.CBMManual {
+			ppb := item.PiecesPerBox
+			if ppb <= 0 {
+				ppb = 1
+			}
+			numBoxes := math.Ceil(float64(item.Quantity) / float64(ppb))
+			rawCBM := numBoxes * item.BoxWidth * item.BoxLength * item.BoxHeight / 1_000_000
+			item.CBM = math.Ceil(rawCBM*10) / 10
 		}
-		numBoxes := math.Ceil(float64(item.Quantity) / float64(ppb))
-		rawCBM := numBoxes * item.BoxWidth * item.BoxLength * item.BoxHeight / 1_000_000
-		item.CBM = math.Ceil(rawCBM*10) / 10
 		totalCBM += item.CBM
 	}
 
