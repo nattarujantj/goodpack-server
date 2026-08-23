@@ -24,6 +24,9 @@ type InternationalImport struct {
 	// FCL specific
 	FCLCostDetails []FCLCostDetail `bson:"fclCostDetails" json:"fclCostDetails"`
 	TotalFCLCost   float64         `bson:"totalFCLCost" json:"totalFCLCost"`
+	// FCLShipmentID links this import (one factory / imp id) to a shared container.
+	// When set, shipping cost is derived from the container instead of the fields above.
+	FCLShipmentID *string `bson:"fclShipmentId,omitempty" json:"fclShipmentId,omitempty"`
 	// Items
 	Items []ImportItem `bson:"items" json:"items"`
 	// Summary
@@ -74,6 +77,7 @@ type InternationalImportRequest struct {
 	UsdToThbRate      float64         `json:"usdToThbRate"`
 	PricePerCBM       float64         `json:"pricePerCBM"`
 	FCLCostDetails    []FCLCostDetail `json:"fclCostDetails"`
+	FCLShipmentID     *string         `json:"fclShipmentId,omitempty"`
 	Items             []ImportItem    `json:"items"`
 	Notes             *string         `json:"notes,omitempty"`
 }
@@ -127,6 +131,60 @@ func (r *InternationalImportRequest) CalculateItemCosts() {
 	}
 }
 
+// RecalcItemCBM recomputes CBM for every item and returns the total CBM of this import.
+// This is the import's contribution to its FCL container's total CBM.
+func (imp *InternationalImport) RecalcItemCBM() float64 {
+	totalCBM := 0.0
+	for i := range imp.Items {
+		item := &imp.Items[i]
+		ppb := item.PiecesPerBox
+		if ppb <= 0 {
+			ppb = 1
+		}
+		numBoxes := math.Ceil(float64(item.Quantity) / float64(ppb))
+		rawCBM := numBoxes * item.BoxWidth * item.BoxLength * item.BoxHeight / 1_000_000
+		item.CBM = math.Ceil(rawCBM*10) / 10
+		totalCBM += item.CBM
+	}
+	return totalCBM
+}
+
+// RecalculateForFCLContainer recomputes all item and summary costs for an import that
+// belongs to an FCL container. Shipping per unit is allocated by CBM share of the whole
+// container: (item CBM / container total CBM) × container total cost / quantity.
+// containerCBM is the CBM summed across every import linked to the same container.
+func (imp *InternationalImport) RecalculateForFCLContainer(containerCost, containerCBM float64) {
+	imp.RecalcItemCBM()
+
+	var totalCBM, totalShippingCost, totalProductCost, grandTotal float64
+	for i := range imp.Items {
+		item := &imp.Items[i]
+		productCost := item.UsdPricePerUnit * imp.UsdToThbRate
+
+		var shippingPerUnit float64
+		if containerCBM > 0 && item.Quantity > 0 {
+			shippingPerUnit = (item.CBM / containerCBM) * containerCost / float64(item.Quantity)
+		}
+
+		item.ShippingCostPerUnit = shippingPerUnit
+		item.CostPerUnitBeforeVAT = productCost + shippingPerUnit + item.Commission
+		item.VATPerUnit = item.CostPerUnitBeforeVAT * 0.07
+		item.CostPerUnitAfterVAT = item.CostPerUnitBeforeVAT + item.VATPerUnit
+		item.TotalCost = item.CostPerUnitAfterVAT * float64(item.Quantity)
+
+		totalCBM += item.CBM
+		totalShippingCost += item.ShippingCostPerUnit * float64(item.Quantity)
+		totalProductCost += productCost * float64(item.Quantity)
+		grandTotal += item.TotalCost
+	}
+
+	imp.TotalCBM = totalCBM
+	imp.TotalShippingCost = totalShippingCost
+	imp.TotalProductCost = totalProductCost
+	imp.GrandTotal = grandTotal
+	imp.UpdatedAt = utils.NowInThailand()
+}
+
 func (r *InternationalImportRequest) ToInternationalImport() *InternationalImport {
 	now := utils.NowInThailand()
 
@@ -166,6 +224,7 @@ func (r *InternationalImportRequest) ToInternationalImport() *InternationalImpor
 		PricePerCBM:         r.PricePerCBM,
 		FCLCostDetails:      fclDetails,
 		TotalFCLCost:        totalFCLCost,
+		FCLShipmentID:       r.FCLShipmentID,
 		Items:               items,
 		TotalCBM:            totalCBM,
 		TotalShippingCost:   totalShippingCost,
@@ -211,6 +270,7 @@ func (imp *InternationalImport) UpdateFromRequest(r *InternationalImportRequest)
 	imp.PricePerCBM = r.PricePerCBM
 	imp.FCLCostDetails = fclDetails
 	imp.TotalFCLCost = totalFCLCost
+	imp.FCLShipmentID = r.FCLShipmentID
 	imp.Items = items
 	imp.TotalCBM = totalCBM
 	imp.TotalShippingCost = totalShippingCost
