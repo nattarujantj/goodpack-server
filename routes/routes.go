@@ -29,6 +29,7 @@ func SetupRoutes(
 	stockAdjustmentRepo *repository.StockAdjustmentRepository,
 	shippingCompanyRepo *repository.ShippingCompanyRepository,
 	internationalImportRepo *repository.InternationalImportRepository,
+	fclShipmentRepo *repository.FCLShipmentRepository,
 	expenseRepo *repository.ExpenseRepository,
 	userRepo *repository.UserRepository,
 	inventorySnapshotRepo *repository.InventorySnapshotRepository,
@@ -52,7 +53,8 @@ func SetupRoutes(
 	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo, expenseRepo, snapshotService)
 	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
 	shippingCompanyHandler := handlers.NewShippingCompanyHandler(shippingCompanyRepo)
-	internationalImportHandler := handlers.NewInternationalImportHandler(internationalImportRepo, supplierRepo, shippingCompanyRepo, productRepo, purchaseRepo, stockAdjustmentRepo)
+	internationalImportHandler := handlers.NewInternationalImportHandler(internationalImportRepo, supplierRepo, shippingCompanyRepo, productRepo, purchaseRepo, stockAdjustmentRepo, fclShipmentRepo)
+	fclShipmentHandler := handlers.NewFCLShipmentHandler(fclShipmentRepo, internationalImportRepo, shippingCompanyRepo, supplierRepo)
 	authHandler := handlers.NewAuthHandler(userRepo, jwtSecret, jwtExpiry)
 	inventorySnapshotHandler := handlers.NewInventorySnapshotHandler(snapshotService)
 
@@ -183,6 +185,16 @@ func SetupRoutes(
 	api.HandleFunc("/international-imports/{id}/commission-paid", internationalImportHandler.UpdateCommissionPaid).Methods("PATCH")
 	api.HandleFunc("/international-imports/{id}/confirm", internationalImportHandler.ConfirmImport).Methods("PATCH")
 	api.HandleFunc("/international-imports/{id}/unconfirm", internationalImportHandler.UnconfirmImport).Methods("PATCH")
+
+	// FCL Shipment (container) routes
+	api.HandleFunc("/fcl-shipments", fclShipmentHandler.GetAll).Methods("GET")
+	api.HandleFunc("/fcl-shipments", fclShipmentHandler.Create).Methods("POST")
+	api.HandleFunc("/fcl-shipments/{id}", fclShipmentHandler.GetByID).Methods("GET")
+	api.HandleFunc("/fcl-shipments/{id}", fclShipmentHandler.Update).Methods("PUT")
+	api.HandleFunc("/fcl-shipments/{id}", fclShipmentHandler.Delete).Methods("DELETE")
+	api.HandleFunc("/fcl-shipments/{id}/imports", fclShipmentHandler.GetImports).Methods("GET")
+	api.HandleFunc("/fcl-shipments/{id}/close", fclShipmentHandler.Close).Methods("PATCH")
+	api.HandleFunc("/fcl-shipments/{id}/reopen", fclShipmentHandler.Reopen).Methods("PATCH")
 
 	// Static file serving for uploaded images
 	router.PathPrefix("/uploads/").Handler(http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads/"))))

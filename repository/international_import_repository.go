@@ -83,6 +83,26 @@ func (r *InternationalImportRepository) Delete(ctx context.Context, id string) e
 	return err
 }
 
+// GetByFCLShipmentID returns all imports linked to the given FCL container.
+func (r *InternationalImportRepository) GetByFCLShipmentID(ctx context.Context, shipmentID string) ([]*models.InternationalImport, error) {
+	opts := options.Find().SetSort(bson.D{{Key: "importDate", Value: -1}})
+	cursor, err := r.collection.Find(ctx, bson.M{"fclShipmentId": shipmentID}, opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var imports []*models.InternationalImport
+	for cursor.Next(ctx) {
+		var imp models.InternationalImport
+		if err := cursor.Decode(&imp); err != nil {
+			return nil, err
+		}
+		imports = append(imports, &imp)
+	}
+	return imports, nil
+}
+
 // GetNextSequenceNumber returns the next sequence number for import codes with the given prefix.
 func (r *InternationalImportRepository) GetNextSequenceNumber(ctx context.Context, prefix string) (int, error) {
 	filter := bson.M{

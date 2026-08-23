@@ -19,6 +19,7 @@ type InternationalImportHandler struct {
 	productRepo         *repository.ProductRepository
 	purchaseRepo        *repository.PurchaseRepository
 	stockAdjustmentRepo *repository.StockAdjustmentRepository
+	fclRepo             *repository.FCLShipmentRepository
 }
 
 func NewInternationalImportHandler(
@@ -28,6 +29,7 @@ func NewInternationalImportHandler(
 	productRepo *repository.ProductRepository,
 	purchaseRepo *repository.PurchaseRepository,
 	stockAdjustmentRepo *repository.StockAdjustmentRepository,
+	fclRepo *repository.FCLShipmentRepository,
 ) *InternationalImportHandler {
 	return &InternationalImportHandler{
 		importRepo:          importRepo,
@@ -36,7 +38,28 @@ func NewInternationalImportHandler(
 		productRepo:         productRepo,
 		purchaseRepo:        purchaseRepo,
 		stockAdjustmentRepo: stockAdjustmentRepo,
+		fclRepo:             fclRepo,
 	}
+}
+
+// fclShipmentIDValue returns the non-empty shipment id a request/import points to, or "".
+func fclShipmentIDValue(id *string) string {
+	if id == nil {
+		return ""
+	}
+	return strings.TrimSpace(*id)
+}
+
+// validateOpenShipment ensures the referenced container exists and is open (editable).
+func (h *InternationalImportHandler) validateOpenShipment(ctx context.Context, shipmentID string) error {
+	shipment, err := h.fclRepo.GetByID(ctx, shipmentID)
+	if err != nil {
+		return fmt.Errorf("FCL container not found")
+	}
+	if shipment.Status == "closed" {
+		return fmt.Errorf("FCL container is closed; reopen it before linking or editing imports")
+	}
+	return nil
 }
 
 func (h *InternationalImportHandler) enrichWithNames(imp *models.InternationalImport) {
@@ -120,6 +143,14 @@ func (h *InternationalImportHandler) Create(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	shipmentID := fclShipmentIDValue(req.FCLShipmentID)
+	if shipmentID != "" {
+		if err := h.validateOpenShipment(ctx, shipmentID); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	imp := req.ToInternationalImport()
 
 	importCode, err := h.generateImportCode(ctx)
@@ -134,6 +165,18 @@ func (h *InternationalImportHandler) Create(w http.ResponseWriter, r *http.Reque
 	if err := h.importRepo.Create(ctx, imp); err != nil {
 		http.Error(w, "Failed to create international import", http.StatusInternalServerError)
 		return
+	}
+
+	// Adding a factory to a container re-allocates shipping across all imports in it.
+	if shipmentID != "" {
+		if err := recomputeFCLContainer(ctx, h.importRepo, h.fclRepo, shipmentID); err != nil {
+			http.Error(w, "Failed to recompute container", http.StatusInternalServerError)
+			return
+		}
+		if refreshed, err := h.importRepo.GetByID(ctx, imp.ID.Hex()); err == nil {
+			imp = refreshed
+			h.enrichWithNames(imp)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -163,6 +206,23 @@ func (h *InternationalImportHandler) Update(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	oldShipmentID := fclShipmentIDValue(existing.FCLShipmentID)
+	newShipmentID := fclShipmentIDValue(req.FCLShipmentID)
+
+	// A closed container is locked: block edits to its imports until it is reopened.
+	if oldShipmentID != "" {
+		if err := h.validateOpenShipment(ctx, oldShipmentID); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	if newShipmentID != "" && newShipmentID != oldShipmentID {
+		if err := h.validateOpenShipment(ctx, newShipmentID); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	existing.UpdateFromRequest(&req)
 	h.enrichWithNames(existing)
 
@@ -171,8 +231,36 @@ func (h *InternationalImportHandler) Update(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Re-allocate every affected container (the old one it left, and the new one it joined).
+	for _, sid := range dedupeNonEmpty(oldShipmentID, newShipmentID) {
+		if err := recomputeFCLContainer(ctx, h.importRepo, h.fclRepo, sid); err != nil {
+			http.Error(w, "Failed to recompute container", http.StatusInternalServerError)
+			return
+		}
+	}
+	if newShipmentID != "" {
+		if refreshed, err := h.importRepo.GetByID(ctx, id); err == nil {
+			existing = refreshed
+			h.enrichWithNames(existing)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(existing)
+}
+
+// dedupeNonEmpty returns the distinct non-empty values among the inputs.
+func dedupeNonEmpty(ids ...string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, id := range ids {
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
 }
 
 func (h *InternationalImportHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -185,9 +273,30 @@ func (h *InternationalImportHandler) Delete(w http.ResponseWriter, r *http.Reque
 	}
 	id := pathParts[len(pathParts)-1]
 
+	existing, err := h.importRepo.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "International import not found", http.StatusNotFound)
+		return
+	}
+	shipmentID := fclShipmentIDValue(existing.FCLShipmentID)
+	if shipmentID != "" {
+		if err := h.validateOpenShipment(ctx, shipmentID); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	if err := h.importRepo.Delete(ctx, id); err != nil {
 		http.Error(w, "Failed to delete international import", http.StatusInternalServerError)
 		return
+	}
+
+	// Removing a factory re-allocates shipping across the imports that remain in the container.
+	if shipmentID != "" {
+		if err := recomputeFCLContainer(ctx, h.importRepo, h.fclRepo, shipmentID); err != nil {
+			http.Error(w, "Failed to recompute container", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

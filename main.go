@@ -34,6 +34,7 @@ func main() {
 	stockAdjustmentRepo := repository.NewStockAdjustmentRepository(mongoDB.GetCollection("stock_adjustments"))
 	shippingCompanyRepo := repository.NewShippingCompanyRepository(mongoDB.GetCollection("shipping_companies"))
 	internationalImportRepo := repository.NewInternationalImportRepository(mongoDB.GetCollection("international_imports"))
+	fclShipmentRepo := repository.NewFCLShipmentRepository(mongoDB.GetCollection("fcl_shipments"))
 	expenseRepo := repository.NewExpenseRepository(mongoDB.GetCollection("expenses"))
 	userRepo := repository.NewUserRepository(mongoDB.GetCollection("users"))
 	inventorySnapshotRepo := repository.NewInventorySnapshotRepository(mongoDB.GetCollection("inventory_snapshots"))
@@ -55,6 +56,7 @@ func main() {
 		purchaseRepo, saleRepo, quotationRepo,
 		purchaseOrderRepo, stockAdjustmentRepo,
 		shippingCompanyRepo, internationalImportRepo,
+		fclShipmentRepo,
 		expenseRepo, userRepo, inventorySnapshotRepo,
 		cfg.JWTSecret, jwtExpiry,
 	)
