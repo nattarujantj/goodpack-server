@@ -43,7 +43,23 @@ type PurchaseItem struct {
 	UnitPrice        float64  `bson:"unitPrice" json:"unitPrice"`
 	PreformProductID *string  `bson:"preformProductId,omitempty" json:"preformProductId,omitempty"`
 	PreformUnitPrice *float64 `bson:"preformUnitPrice,omitempty" json:"preformUnitPrice,omitempty"`
-	TotalPrice       float64  `bson:"totalPrice" json:"totalPrice"`
+	// CommissionPerUnit คือค่าคอมต่อชิ้น (เช่น จากรายการนำเข้า) ซึ่งไม่คิด VAT
+	// จึงไม่รวมใน UnitPrice/TotalPrice แต่นับเป็นต้นทุนจริงของสินค้า
+	CommissionPerUnit *float64 `bson:"commissionPerUnit,omitempty" json:"commissionPerUnit,omitempty"`
+	TotalPrice        float64  `bson:"totalPrice" json:"totalPrice"`
+}
+
+// EffectiveUnitPrice คือต้นทุนจริงต่อชิ้นที่ใช้คำนวณราคาซื้อของสินค้า:
+// ราคาต่อชิ้น + ราคาพรีฟอร์ม + ค่าคอม
+func (item PurchaseItem) EffectiveUnitPrice() float64 {
+	price := item.UnitPrice
+	if item.PreformUnitPrice != nil {
+		price += *item.PreformUnitPrice
+	}
+	if item.CommissionPerUnit != nil {
+		price += *item.CommissionPerUnit
+	}
+	return price
 }
 
 type PaymentInfo struct {

@@ -35,12 +35,12 @@ type InternationalImport struct {
 	TotalProductCost  float64 `bson:"totalProductCost" json:"totalProductCost"`
 	GrandTotal        float64 `bson:"grandTotal" json:"grandTotal"`
 	// Status
-	Status        string  `bson:"status" json:"status"` // "draft" | "confirmed" | "purchased"
-	PurchaseID    *string `bson:"purchaseId,omitempty" json:"purchaseId,omitempty"`
-	PurchaseIsVAT *bool   `bson:"purchaseIsVAT,omitempty" json:"purchaseIsVAT,omitempty"`
-	Notes         *string `bson:"notes,omitempty" json:"notes,omitempty"`
-	CreatedAt  time.Time `bson:"createdAt" json:"createdAt"`
-	UpdatedAt  time.Time `bson:"updatedAt" json:"updatedAt"`
+	Status        string    `bson:"status" json:"status"` // "draft" | "confirmed" | "purchased"
+	PurchaseID    *string   `bson:"purchaseId,omitempty" json:"purchaseId,omitempty"`
+	PurchaseIsVAT *bool     `bson:"purchaseIsVAT,omitempty" json:"purchaseIsVAT,omitempty"`
+	Notes         *string   `bson:"notes,omitempty" json:"notes,omitempty"`
+	CreatedAt     time.Time `bson:"createdAt" json:"createdAt"`
+	UpdatedAt     time.Time `bson:"updatedAt" json:"updatedAt"`
 }
 
 type FCLCostDetail struct {
@@ -125,7 +125,8 @@ func (r *InternationalImportRequest) CalculateItemCosts() {
 
 		item.ShippingCostPerUnit = shippingPerUnit
 		item.CostPerUnitBeforeVAT = productCost + shippingPerUnit + item.Commission
-		item.VATPerUnit = item.CostPerUnitBeforeVAT * 0.07
+		// ค่าคอมไม่คิด VAT: VAT คิดจากค่าสินค้า + ค่าส่งเท่านั้น
+		item.VATPerUnit = (productCost + shippingPerUnit) * 0.07
 		item.CostPerUnitAfterVAT = item.CostPerUnitBeforeVAT + item.VATPerUnit
 		item.TotalCost = item.CostPerUnitAfterVAT * float64(item.Quantity)
 	}
@@ -168,7 +169,8 @@ func (imp *InternationalImport) RecalculateForFCLContainer(containerCost, contai
 
 		item.ShippingCostPerUnit = shippingPerUnit
 		item.CostPerUnitBeforeVAT = productCost + shippingPerUnit + item.Commission
-		item.VATPerUnit = item.CostPerUnitBeforeVAT * 0.07
+		// ค่าคอมไม่คิด VAT: VAT คิดจากค่าสินค้า + ค่าส่งเท่านั้น
+		item.VATPerUnit = (productCost + shippingPerUnit) * 0.07
 		item.CostPerUnitAfterVAT = item.CostPerUnitBeforeVAT + item.VATPerUnit
 		item.TotalCost = item.CostPerUnitAfterVAT * float64(item.Quantity)
 
@@ -285,14 +287,21 @@ func (imp *InternationalImport) ToPurchaseRequest(isVAT bool) *PurchaseRequest {
 	purchaseItems := make([]PurchaseItem, len(imp.Items))
 	for i, item := range imp.Items {
 		// ใช้ราคาก่อน VAT เสมอ: ถ้ามี VAT จะสร้างเป็น VAT นอก (ราคา + VAT 7%)
-		unitPrice := item.CostPerUnitBeforeVAT
+		// ค่าคอมไม่คิด VAT จึงแยกออกจากราคาต่อชิ้น แต่ยังนับเป็นต้นทุนจริงของสินค้า
+		unitPrice := item.CostPerUnitBeforeVAT - item.Commission
+		var commissionPerUnit *float64
+		if item.Commission != 0 {
+			c := item.Commission
+			commissionPerUnit = &c
+		}
 		purchaseItems[i] = PurchaseItem{
-			ProductID:   item.ProductID,
-			ProductName: item.ProductName,
-			ProductCode: item.ProductCode,
-			Quantity:    item.Quantity,
-			UnitPrice:   unitPrice,
-			TotalPrice:  unitPrice * float64(item.Quantity),
+			ProductID:         item.ProductID,
+			ProductName:       item.ProductName,
+			ProductCode:       item.ProductCode,
+			Quantity:          item.Quantity,
+			UnitPrice:         unitPrice,
+			CommissionPerUnit: commissionPerUnit,
+			TotalPrice:        unitPrice * float64(item.Quantity),
 		}
 	}
 

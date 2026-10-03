@@ -169,11 +169,12 @@ type stockEvent struct {
 }
 
 type eventItem struct {
-	productID        string
-	quantity         int
-	unitPrice        float64
-	preformProductID string  // "" if none (purchase only)
-	preformUnitPrice float64 // added to effective purchase price
+	productID         string
+	quantity          int
+	unitPrice         float64
+	preformProductID  string  // "" if none (purchase only)
+	preformUnitPrice  float64 // added to effective purchase price
+	commissionPerUnit float64 // added to effective purchase price
 }
 
 // buildEvents flattens purchases and sales into one slice sorted oldest-first.
@@ -194,6 +195,9 @@ func buildEvents(purchases []*models.Purchase, sales []models.Sale) []stockEvent
 			}
 			if it.PreformUnitPrice != nil {
 				ei.preformUnitPrice = *it.PreformUnitPrice
+			}
+			if it.CommissionPerUnit != nil {
+				ei.commissionPerUnit = *it.CommissionPerUnit
 			}
 			items = append(items, ei)
 		}
@@ -244,7 +248,7 @@ func applyEvent(ev stockEvent, productByID map[string]*models.Product, missing m
 		}
 
 		if ev.isPurchase {
-			effectivePrice := it.unitPrice + it.preformUnitPrice
+			effectivePrice := it.unitPrice + it.preformUnitPrice + it.commissionPerUnit
 			product.UpdatePrice(effectivePrice, ev.isVAT, true, it.quantity)
 			handlers.ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, it.quantity)
 
@@ -329,7 +333,7 @@ func recomputeYTDMTD(events []stockEvent, productByID map[string]*models.Product
 			}
 			price := it.unitPrice
 			if ev.isPurchase {
-				price += it.preformUnitPrice
+				price += it.preformUnitPrice + it.commissionPerUnit
 			}
 			amount := price * float64(it.quantity)
 
