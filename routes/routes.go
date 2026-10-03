@@ -182,6 +182,7 @@ func SetupRoutes(
 	api.HandleFunc("/international-imports/{id}", internationalImportHandler.Update).Methods("PUT")
 	api.HandleFunc("/international-imports/{id}", internationalImportHandler.Delete).Methods("DELETE")
 	api.HandleFunc("/international-imports/{id}/create-purchase", internationalImportHandler.CreatePurchaseFromImport).Methods("POST")
+	api.HandleFunc("/international-imports/{id}/cancel-purchase", internationalImportHandler.CancelPurchaseFromImport).Methods("POST")
 	api.HandleFunc("/international-imports/{id}/commission-paid", internationalImportHandler.UpdateCommissionPaid).Methods("PATCH")
 	api.HandleFunc("/international-imports/{id}/confirm", internationalImportHandler.ConfirmImport).Methods("PATCH")
 	api.HandleFunc("/international-imports/{id}/unconfirm", internationalImportHandler.UnconfirmImport).Methods("PATCH")
