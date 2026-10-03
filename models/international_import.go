@@ -284,10 +284,8 @@ func (imp *InternationalImport) UpdateFromRequest(r *InternationalImportRequest)
 func (imp *InternationalImport) ToPurchaseRequest(isVAT bool) *PurchaseRequest {
 	purchaseItems := make([]PurchaseItem, len(imp.Items))
 	for i, item := range imp.Items {
+		// ใช้ราคาก่อน VAT เสมอ: ถ้ามี VAT จะสร้างเป็น VAT นอก (ราคา + VAT 7%)
 		unitPrice := item.CostPerUnitBeforeVAT
-		if isVAT {
-			unitPrice = item.CostPerUnitAfterVAT
-		}
 		purchaseItems[i] = PurchaseItem{
 			ProductID:   item.ProductID,
 			ProductName: item.ProductName,
@@ -300,7 +298,7 @@ func (imp *InternationalImport) ToPurchaseRequest(isVAT bool) *PurchaseRequest {
 
 	vatType := ""
 	if isVAT {
-		vatType = "inclusive"
+		vatType = "exclusive"
 	}
 
 	return &PurchaseRequest{
