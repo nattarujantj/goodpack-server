@@ -238,10 +238,7 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 	for _, oldItem := range existingPurchase.Items {
 		product, err := h.productRepo.GetByID(ctx, oldItem.ProductID)
 		if err == nil {
-			effectiveUnitPrice := oldItem.UnitPrice
-			if oldItem.PreformUnitPrice != nil {
-				effectiveUnitPrice += *oldItem.PreformUnitPrice
-			}
+			effectiveUnitPrice := oldItem.EffectiveUnitPrice()
 			product.RollbackPriceUpdate(effectiveUnitPrice, existingPurchase.IsVAT, true, oldItem.Quantity)
 
 			var stockType models.StockType
@@ -337,10 +334,7 @@ func (h *PurchaseHandler) rollbackPurchaseEffects(ctx context.Context, purchase 
 	for _, item := range purchase.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err == nil {
-			effectiveUnitPrice := item.UnitPrice
-			if item.PreformUnitPrice != nil {
-				effectiveUnitPrice += *item.PreformUnitPrice
-			}
+			effectiveUnitPrice := item.EffectiveUnitPrice()
 			product.RollbackPriceUpdate(effectiveUnitPrice, purchase.IsVAT, true, item.Quantity)
 
 			var stockType models.StockType
@@ -388,11 +382,8 @@ func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *model
 			continue // Skip if product not found
 		}
 
-		// Calculate effective unit price (including preform cost if any)
-		effectiveUnitPrice := item.UnitPrice
-		if item.PreformUnitPrice != nil {
-			effectiveUnitPrice += *item.PreformUnitPrice
-		}
+		// Calculate effective unit price (including preform cost and commission if any)
+		effectiveUnitPrice := item.EffectiveUnitPrice()
 
 		// Update purchase price using new UpdatePrice method with quantity
 		product.UpdatePrice(effectiveUnitPrice, purchase.IsVAT, true, item.Quantity) // true = isPurchase
