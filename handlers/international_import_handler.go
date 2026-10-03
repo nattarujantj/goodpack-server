@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"goodpack-server/models"
 	"goodpack-server/repository"
 	"goodpack-server/utils"
+
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type InternationalImportHandler struct {
@@ -382,6 +385,65 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 		"import":   imp,
 		"purchase": purchase,
 	})
+}
+
+// CancelPurchaseFromImport deletes the purchase created from an import (rolling back
+// its stock and price updates) and reverts the import to "confirmed" so a new
+// purchase can be created.
+// URL: POST /api/international-imports/{id}/cancel-purchase
+func (h *InternationalImportHandler) CancelPurchaseFromImport(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 5 {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+	id := pathParts[len(pathParts)-2]
+
+	imp, err := h.importRepo.GetByID(ctx, id)
+	if err != nil {
+		http.Error(w, "International import not found", http.StatusNotFound)
+		return
+	}
+
+	if imp.Status != "purchased" {
+		http.Error(w, "No purchase to cancel for this import", http.StatusBadRequest)
+		return
+	}
+
+	if imp.PurchaseID != nil && *imp.PurchaseID != "" {
+		purchase, err := h.purchaseRepo.GetByID(ctx, *imp.PurchaseID)
+		switch {
+		case err == nil:
+			purchaseHandler := NewPurchaseHandler(h.purchaseRepo, h.supplierRepo, h.productRepo, h.stockAdjustmentRepo)
+			purchaseHandler.rollbackPurchaseEffects(ctx, purchase, "ยกเลิก")
+			if err := h.purchaseRepo.Delete(ctx, *imp.PurchaseID); err != nil {
+				http.Error(w, "Failed to delete purchase", http.StatusInternalServerError)
+				return
+			}
+		case errors.Is(err, mongo.ErrNoDocuments):
+			// The purchase was already deleted elsewhere; just reset the import.
+		default:
+			http.Error(w, "Failed to get purchase", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	imp.Status = "confirmed"
+	imp.PurchaseID = nil
+	imp.PurchaseIsVAT = nil
+	imp.UpdatedAt = utils.NowInThailand()
+
+	if err := h.importRepo.Update(ctx, id, imp); err != nil {
+		http.Error(w, "Failed to update import status", http.StatusInternalServerError)
+		return
+	}
+
+	h.enrichWithNames(imp)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(imp)
 }
 
 // UpdateCommissionPaid updates the commissionPaid status for a specific item.
