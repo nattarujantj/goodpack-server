@@ -24,6 +24,7 @@ type Sale struct {
 	IsVAT             bool               `bson:"isVAT" json:"isVAT"`
 	VatType           string             `bson:"vatType" json:"vatType"` // "exclusive" (VAT นอก) or "inclusive" (VAT ใน)
 	ShippingCost      float64            `bson:"shippingCost" json:"shippingCost"`
+	Deposit           float64            `bson:"deposit" json:"deposit"` // เงินมัดจำ (หักออกจากยอดที่ต้องชำระหลัง VAT)
 	Payment           PaymentInfo        `bson:"payment" json:"payment"`
 	Warehouse         WarehouseInfo      `bson:"warehouse" json:"warehouse"`
 	Notes             *string            `bson:"notes,omitempty" json:"notes,omitempty"`
@@ -52,6 +53,7 @@ type SaleRequest struct {
 	IsVAT             bool          `json:"isVAT"`
 	VatType           string        `json:"vatType"` // "exclusive" or "inclusive"
 	ShippingCost      float64       `json:"shippingCost"`
+	Deposit           float64       `json:"deposit"`
 	Payment           PaymentInfo   `json:"payment"`
 	Warehouse         WarehouseInfo `json:"warehouse"`
 	Notes             *string       `json:"notes,omitempty"`
@@ -75,6 +77,7 @@ func (sr *SaleRequest) ToSale() *Sale {
 		IsVAT:             sr.IsVAT,
 		VatType:           vatType,
 		ShippingCost:      sr.ShippingCost,
+		Deposit:           sr.Deposit,
 		Payment:           sr.Payment,
 		Warehouse:         sr.Warehouse,
 		Notes:             sr.Notes,
@@ -102,6 +105,7 @@ func (s *Sale) UpdateFromRequest(req *SaleRequest) {
 	s.IsVAT = req.IsVAT
 	s.VatType = vatType
 	s.ShippingCost = req.ShippingCost
+	s.Deposit = req.Deposit
 	s.Payment = req.Payment
 	s.Warehouse = req.Warehouse
 	s.Notes = req.Notes
