@@ -22,6 +22,9 @@ type FCLShipment struct {
 	UsdToThbRate        float64            `bson:"usdToThbRate" json:"usdToThbRate"` // default rate for USD cost lines
 	CostLines           []FCLCostLine      `bson:"costLines" json:"costLines"`
 	TotalCostThb        float64            `bson:"totalCostThb" json:"totalCostThb"`
+	// TotalVAT is the input VAT (ภาษีซื้อ) on the cost lines' tax invoices. It is not part of
+	// TotalCostThb and is not allocated to products.
+	TotalVAT float64 `bson:"totalVAT" json:"totalVAT"`
 	// TotalCBM and LinkedImportCount are summed across every linked import and refreshed
 	// whenever the container is recomputed.
 	TotalCBM          float64   `bson:"totalCBM" json:"totalCBM"`
@@ -35,12 +38,18 @@ type FCLShipment struct {
 // FCLCostLine is one charge that makes up the container cost (freight, THC, clearing...).
 // Each line may be entered in THB or USD; USD lines are converted to THB using the line's
 // own UsdRate, falling back to the shipment's UsdToThbRate when not provided.
+// Amount is before VAT. VAT (THB) comes from the vendor's tax invoice (ใบกำกับภาษี) and
+// counts as input VAT, not as container cost.
 type FCLCostLine struct {
-	Name      string  `bson:"name" json:"name"`
-	Currency  string  `bson:"currency" json:"currency"` // "THB" | "USD"
-	Amount    float64 `bson:"amount" json:"amount"`
-	UsdRate   float64 `bson:"usdRate" json:"usdRate"`
-	AmountThb float64 `bson:"amountThb" json:"amountThb"`
+	Name           string     `bson:"name" json:"name"`
+	Currency       string     `bson:"currency" json:"currency"` // "THB" | "USD"
+	Amount         float64    `bson:"amount" json:"amount"`
+	UsdRate        float64    `bson:"usdRate" json:"usdRate"`
+	AmountThb      float64    `bson:"amountThb" json:"amountThb"`
+	VAT            float64    `bson:"vat" json:"vat"`
+	Vendor         string     `bson:"vendor" json:"vendor"`
+	TaxInvoiceNo   string     `bson:"taxInvoiceNo" json:"taxInvoiceNo"`
+	TaxInvoiceDate *time.Time `bson:"taxInvoiceDate,omitempty" json:"taxInvoiceDate,omitempty"`
 }
 
 type FCLShipmentRequest struct {
@@ -51,10 +60,11 @@ type FCLShipmentRequest struct {
 	Notes             *string       `json:"notes,omitempty"`
 }
 
-// normalizeCostLines fills AmountThb for each line and returns the lines plus the total in THB.
-func normalizeCostLines(lines []FCLCostLine, defaultRate float64) ([]FCLCostLine, float64) {
+// normalizeCostLines fills AmountThb for each line and returns the lines plus the totals
+// in THB: cost before VAT and VAT.
+func normalizeCostLines(lines []FCLCostLine, defaultRate float64) ([]FCLCostLine, float64, float64) {
 	out := make([]FCLCostLine, 0, len(lines))
-	total := 0.0
+	total, totalVAT := 0.0, 0.0
 	for _, l := range lines {
 		line := l
 		if line.Currency == "USD" {
@@ -70,20 +80,22 @@ func normalizeCostLines(lines []FCLCostLine, defaultRate float64) ([]FCLCostLine
 			line.AmountThb = line.Amount
 		}
 		total += line.AmountThb
+		totalVAT += line.VAT
 		out = append(out, line)
 	}
-	return out, total
+	return out, total, utils.RoundTo2(totalVAT)
 }
 
 func (r *FCLShipmentRequest) ToFCLShipment() *FCLShipment {
 	now := utils.NowInThailand()
-	lines, total := normalizeCostLines(r.CostLines, r.UsdToThbRate)
+	lines, total, totalVAT := normalizeCostLines(r.CostLines, r.UsdToThbRate)
 	return &FCLShipment{
 		ShipmentDate:      r.ShipmentDate,
 		ShippingCompanyID: r.ShippingCompanyID,
 		UsdToThbRate:      r.UsdToThbRate,
 		CostLines:         lines,
 		TotalCostThb:      total,
+		TotalVAT:          totalVAT,
 		TotalCBM:          0,
 		LinkedImportCount: 0,
 		Status:            "open",
@@ -96,12 +108,13 @@ func (r *FCLShipmentRequest) ToFCLShipment() *FCLShipment {
 // UpdateFromRequest applies editable fields from the request. Status, totals derived
 // from linked imports, and identity fields are managed elsewhere.
 func (s *FCLShipment) UpdateFromRequest(r *FCLShipmentRequest) {
-	lines, total := normalizeCostLines(r.CostLines, r.UsdToThbRate)
+	lines, total, totalVAT := normalizeCostLines(r.CostLines, r.UsdToThbRate)
 	s.ShipmentDate = r.ShipmentDate
 	s.ShippingCompanyID = r.ShippingCompanyID
 	s.UsdToThbRate = r.UsdToThbRate
 	s.CostLines = lines
 	s.TotalCostThb = total
+	s.TotalVAT = totalVAT
 	s.Notes = r.Notes
 	s.UpdatedAt = utils.NowInThailand()
 }

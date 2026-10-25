@@ -3,6 +3,7 @@ package models
 import (
 	"math"
 	"testing"
+	"time"
 )
 
 func almostEqual(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
@@ -58,11 +59,13 @@ func TestCustomsSplitVAT(t *testing.T) {
 
 // FCL ที่กรอกใบขนแล้ว: VAT ค่าของเฉลี่ยตามมูลค่า, VAT ค่าเฟรทเฉลี่ยตาม CBM ภายใน imp
 func TestImportCustomsVAT(t *testing.T) {
+	declDate := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
 	imp := &InternationalImport{
 		ImportType:   "FCL",
 		UsdToThbRate: 35,
 		// VAT 1,000 แบ่งเป็นค่าเฟรท 1,000 × 250 / 1,000 = 250, ค่าของ 750
-		Customs: &ImportCustoms{DeclarationNo: "A001", CIFValue: 1000, FreightValue: 250, VAT: 1000},
+		ImportDate: time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC),
+		Customs:    &ImportCustoms{DeclarationNo: "A001", DeclarationDate: &declDate, CIFValue: 1000, FreightValue: 250, VAT: 1000},
 		Items: []ImportItem{
 			// ค่าของ 35 × 100 = 3,500 (มูลค่า 50%), CBM 1 (25%)
 			{ProductID: "a", UsdPricePerUnit: 1, Quantity: 100, CBM: 1, CBMManual: true},
@@ -105,6 +108,12 @@ func TestImportCustomsVAT(t *testing.T) {
 	}
 	if purchase.ImportCustoms == nil || purchase.ImportCustoms.GoodsVAT != 750 || purchase.ImportCustoms.FreightVAT != 250 {
 		t.Fatalf("ImportCustoms = %+v, want goods 750 freight 250", purchase.ImportCustoms)
+	}
+	if purchase.InvoiceNumber == nil || *purchase.InvoiceNumber != "A001" {
+		t.Fatalf("InvoiceNumber = %v, want A001", purchase.InvoiceNumber)
+	}
+	if !purchase.PurchaseDate.Equal(declDate) {
+		t.Fatalf("PurchaseDate = %v, want declaration date %v", purchase.PurchaseDate, declDate)
 	}
 	if !almostEqual(purchase.Items[0].ImportCostPerUnit(), a.CostPerUnitAfterVAT) {
 		t.Fatalf("ImportCostPerUnit = %v, want %v", purchase.Items[0].ImportCostPerUnit(), a.CostPerUnitAfterVAT)

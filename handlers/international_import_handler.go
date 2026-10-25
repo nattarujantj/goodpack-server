@@ -203,6 +203,13 @@ func (h *InternationalImportHandler) Update(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// The purchase was built from this import's costs; editing now would leave the two out of
+	// sync. Cancel the purchase first, edit, then create it again.
+	if existing.Status == "purchased" {
+		http.Error(w, "Import already has a purchase; cancel the purchase before editing", http.StatusBadRequest)
+		return
+	}
+
 	var req models.InternationalImportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)

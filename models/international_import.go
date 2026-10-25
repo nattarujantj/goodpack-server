@@ -470,8 +470,22 @@ func (imp *InternationalImport) ToPurchaseRequest(mode string) *PurchaseRequest 
 		vatType = "exclusive"
 	}
 
+	// ใบซื้อนำเข้า: ภาษีซื้อลงตามวันที่ใบขน และอ้างอิงเลขที่ใบขนเป็นเลขที่ Invoice
+	purchaseDate := imp.ImportDate
+	var invoiceNumber *string
+	if customs != nil {
+		if customs.DeclarationDate != nil && !customs.DeclarationDate.IsZero() {
+			purchaseDate = *customs.DeclarationDate
+		}
+		if customs.DeclarationNo != "" {
+			no := customs.DeclarationNo
+			invoiceNumber = &no
+		}
+	}
+
 	return &PurchaseRequest{
-		PurchaseDate:  imp.ImportDate,
+		PurchaseDate:  purchaseDate,
+		InvoiceNumber: invoiceNumber,
 		SupplierID:    imp.SupplierID,
 		Items:         purchaseItems,
 		IsVAT:         isVAT,
