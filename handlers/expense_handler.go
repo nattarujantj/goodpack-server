@@ -68,12 +68,8 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Category == "" {
-		http.Error(w, "Category is required", http.StatusBadRequest)
-		return
-	}
-	if req.Amount <= 0 {
-		http.Error(w, "Amount must be greater than 0", http.StatusBadRequest)
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -84,13 +80,16 @@ func (h *ExpenseHandler) CreateExpense(w http.ResponseWriter, r *http.Request) {
 
 	now := utils.NowInThailand()
 	expense := &models.Expense{
-		Category:    req.Category,
-		Description: req.Description,
-		Amount:      req.Amount,
-		ExpenseDate: expenseDate,
-		Notes:       req.Notes,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		Category:     req.Category,
+		Description:  req.Description,
+		Amount:       req.Amount,
+		VAT:          utils.RoundTo2(req.VAT),
+		Vendor:       req.Vendor,
+		TaxInvoiceNo: req.TaxInvoiceNo,
+		ExpenseDate:  expenseDate,
+		Notes:        req.Notes,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 
 	ctx := context.Background()
@@ -121,12 +120,8 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Category == "" {
-		http.Error(w, "Category is required", http.StatusBadRequest)
-		return
-	}
-	if req.Amount <= 0 {
-		http.Error(w, "Amount must be greater than 0", http.StatusBadRequest)
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -138,6 +133,9 @@ func (h *ExpenseHandler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
 	existing.Category = req.Category
 	existing.Description = req.Description
 	existing.Amount = req.Amount
+	existing.VAT = utils.RoundTo2(req.VAT)
+	existing.Vendor = req.Vendor
+	existing.TaxInvoiceNo = req.TaxInvoiceNo
 	existing.ExpenseDate = expenseDate
 	existing.Notes = req.Notes
 	existing.UpdatedAt = utils.NowInThailand()

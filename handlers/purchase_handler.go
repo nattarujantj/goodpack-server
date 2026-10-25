@@ -238,8 +238,7 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 	for _, oldItem := range existingPurchase.Items {
 		product, err := h.productRepo.GetByID(ctx, oldItem.ProductID)
 		if err == nil {
-			effectiveUnitPrice := oldItem.EffectiveUnitPrice()
-			product.RollbackPriceUpdate(effectiveUnitPrice, existingPurchase.IsVAT, true, oldItem.Quantity)
+			rollbackPurchasePrice(product, existingPurchase, oldItem)
 
 			var stockType models.StockType
 			if existingPurchase.IsVAT {
@@ -276,6 +275,11 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 					models.AdjustmentTypeAdd, stockType, oldItem.Quantity, &notes)
 			}
 		}
+	}
+
+	// Keep the customs declaration of an import purchase when the client doesn't send it back
+	if purchaseRequest.VATType == models.VATTypeImport && purchaseRequest.ImportCustoms == nil {
+		purchaseRequest.ImportCustoms = existingPurchase.ImportCustoms
 	}
 
 	// Update purchase
@@ -334,8 +338,7 @@ func (h *PurchaseHandler) rollbackPurchaseEffects(ctx context.Context, purchase 
 	for _, item := range purchase.Items {
 		product, err := h.productRepo.GetByID(ctx, item.ProductID)
 		if err == nil {
-			effectiveUnitPrice := item.EffectiveUnitPrice()
-			product.RollbackPriceUpdate(effectiveUnitPrice, purchase.IsVAT, true, item.Quantity)
+			rollbackPurchasePrice(product, purchase, item)
 
 			var stockType models.StockType
 			if purchase.IsVAT {
@@ -374,6 +377,26 @@ func (h *PurchaseHandler) rollbackPurchaseEffects(ctx context.Context, purchase 
 	}
 }
 
+// applyPurchasePrice records a purchase line in the product's purchase price stats.
+// Import purchases (VAT ตามใบขน) share VAT stock but keep their own cost bucket,
+// priced as cost before VAT + the real customs VAT per unit.
+func applyPurchasePrice(product *models.Product, purchase *models.Purchase, item models.PurchaseItem) {
+	if purchase.IsImport() {
+		product.UpdateImportPurchasePrice(item.ImportCostPerUnit(), item.Quantity)
+		return
+	}
+	product.UpdatePrice(item.EffectiveUnitPrice(), purchase.IsVAT, true, item.Quantity) // true = isPurchase
+}
+
+// rollbackPurchasePrice reverses applyPurchasePrice.
+func rollbackPurchasePrice(product *models.Product, purchase *models.Purchase, item models.PurchaseItem) {
+	if purchase.IsImport() {
+		product.RollbackImportPurchasePrice(item.ImportCostPerUnit(), item.Quantity)
+		return
+	}
+	product.RollbackPriceUpdate(item.EffectiveUnitPrice(), purchase.IsVAT, true, item.Quantity)
+}
+
 func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *models.Purchase) error {
 	// Update product prices and stock for each item
 	for _, item := range purchase.Items {
@@ -382,11 +405,8 @@ func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *model
 			continue // Skip if product not found
 		}
 
-		// Calculate effective unit price (including preform cost and commission if any)
-		effectiveUnitPrice := item.EffectiveUnitPrice()
-
-		// Update purchase price using new UpdatePrice method with quantity
-		product.UpdatePrice(effectiveUnitPrice, purchase.IsVAT, true, item.Quantity) // true = isPurchase
+		// Update purchase price (VAT / Non-VAT / นำเข้า) with quantity
+		applyPurchasePrice(product, purchase, item)
 
 		// Determine stock type based on VAT status
 		var stockType models.StockType

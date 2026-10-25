@@ -12,6 +12,9 @@ type ProductTransactionItem struct {
 	TotalPrice   float64   `json:"totalPrice"`
 	TotalVAT     float64   `json:"totalVAT"`
 	GrandTotal   float64   `json:"grandTotal"`
+	// IsImport marks a purchase นำเข้า (VAT ตามใบขน); DeclarationNo is its customs declaration.
+	IsImport      bool   `json:"isImport,omitempty"`
+	DeclarationNo string `json:"declarationNo,omitempty"`
 }
 
 type ProductTransactionPage struct {

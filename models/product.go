@@ -46,6 +46,7 @@ type TierPrice struct {
 type Price struct {
 	PurchaseVAT    PriceInfo   `bson:"purchaseVAT" json:"purchaseVAT"`       // ราคาซื้อ VAT
 	PurchaseNonVAT PriceInfo   `bson:"purchaseNonVAT" json:"purchaseNonVAT"` // ราคาซื้อ Non-VAT
+	PurchaseImport PriceInfo   `bson:"purchaseImport" json:"purchaseImport"` // ต้นทุนนำเข้า (VAT ตามใบขน รวม VAT จริง) สต็อกใช้ร่วมกับ VAT
 	SaleVAT        PriceInfo   `bson:"saleVAT" json:"saleVAT"`               // ราคาขาย VAT
 	SaleNonVAT     PriceInfo   `bson:"saleNonVAT" json:"saleNonVAT"`         // ราคาขาย Non-VAT
 	SalesTiers     []TierPrice `bson:"salesTiers" json:"salesTiers"`         // ราคาขายแบบ tier
@@ -178,31 +179,48 @@ func (p *Product) GetDisplayPrice() float64 {
 // quantity: จำนวนสินค้าในรายการนี้ (ใช้สำหรับคำนวณ Weighted Average)
 // ถ้า quantity = 0 จะใช้ค่า default = 1 (สำหรับกรณี manual update)
 func (p *Product) UpdatePrice(newPrice float64, isVAT bool, isPurchase bool, quantity int) {
-	now := utils.NowInThailand()
-	currentYear := now.Year()
-	currentMonth := int(now.Month())
-
 	// ถ้า quantity = 0 ให้ใช้ค่า default = 1 (สำหรับกรณี manual update)
 	if quantity <= 0 {
 		quantity = 1
 	}
 
-	var priceInfo *PriceInfo
+	updatePriceInfo(p.priceInfoFor(isVAT, isPurchase), newPrice, quantity)
+}
 
-	// เลือก PriceInfo ที่จะอัปเดต
+// UpdateImportPurchasePrice อัปเดตต้นทุนนำเข้า (VAT ตามใบขน) ซึ่งเก็บแยกจากราคาซื้อ VAT
+func (p *Product) UpdateImportPurchasePrice(newPrice float64, quantity int) {
+	if quantity <= 0 {
+		quantity = 1
+	}
+	updatePriceInfo(&p.Price.PurchaseImport, newPrice, quantity)
+}
+
+// RollbackImportPurchasePrice ย้อนต้นทุนนำเข้าเมื่อลบ/แก้ไขรายการซื้อนำเข้า
+func (p *Product) RollbackImportPurchasePrice(oldPrice float64, quantity int) {
+	if quantity <= 0 {
+		return
+	}
+	rollbackPriceInfo(&p.Price.PurchaseImport, oldPrice, quantity)
+}
+
+// priceInfoFor เลือก PriceInfo ตามประเภทรายการ (ซื้อ/ขาย, VAT/Non-VAT)
+func (p *Product) priceInfoFor(isVAT bool, isPurchase bool) *PriceInfo {
 	if isPurchase {
 		if isVAT {
-			priceInfo = &p.Price.PurchaseVAT
-		} else {
-			priceInfo = &p.Price.PurchaseNonVAT
+			return &p.Price.PurchaseVAT
 		}
-	} else {
-		if isVAT {
-			priceInfo = &p.Price.SaleVAT
-		} else {
-			priceInfo = &p.Price.SaleNonVAT
-		}
+		return &p.Price.PurchaseNonVAT
 	}
+	if isVAT {
+		return &p.Price.SaleVAT
+	}
+	return &p.Price.SaleNonVAT
+}
+
+func updatePriceInfo(priceInfo *PriceInfo, newPrice float64, quantity int) {
+	now := utils.NowInThailand()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
 
 	// 1. อัปเดต latest
 	priceInfo.Latest = newPrice
@@ -277,31 +295,17 @@ func (p *Product) UpdatePrice(newPrice float64, isVAT bool, isPurchase bool, qua
 // RollbackPriceUpdate rollback price information when deleting/updating transaction
 // quantity: จำนวนสินค้าที่ต้องการ rollback
 func (p *Product) RollbackPriceUpdate(oldPrice float64, isVAT bool, isPurchase bool, quantity int) {
-	now := utils.NowInThailand()
-	currentYear := now.Year()
-	currentMonth := int(now.Month())
-
 	// ถ้า quantity = 0 ไม่ต้อง rollback
 	if quantity <= 0 {
 		return
 	}
+	rollbackPriceInfo(p.priceInfoFor(isVAT, isPurchase), oldPrice, quantity)
+}
 
-	var priceInfo *PriceInfo
-
-	// เลือก PriceInfo ที่จะ rollback
-	if isPurchase {
-		if isVAT {
-			priceInfo = &p.Price.PurchaseVAT
-		} else {
-			priceInfo = &p.Price.PurchaseNonVAT
-		}
-	} else {
-		if isVAT {
-			priceInfo = &p.Price.SaleVAT
-		} else {
-			priceInfo = &p.Price.SaleNonVAT
-		}
-	}
+func rollbackPriceInfo(priceInfo *PriceInfo, oldPrice float64, quantity int) {
+	now := utils.NowInThailand()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
 
 	// Rollback Weighted Average
 	amount := oldPrice * float64(quantity)

@@ -165,6 +165,7 @@ type stockEvent struct {
 	when       time.Time
 	isPurchase bool
 	isVAT      bool
+	isImport   bool // purchase นำเข้า (VAT ตามใบขน): VAT stock, separate cost bucket
 	items      []eventItem
 }
 
@@ -175,6 +176,7 @@ type eventItem struct {
 	preformProductID  string  // "" if none (purchase only)
 	preformUnitPrice  float64 // added to effective purchase price
 	commissionPerUnit float64 // added to effective purchase price
+	importVATPerUnit  float64 // real customs VAT per unit, added to import cost only
 }
 
 // buildEvents flattens purchases and sales into one slice sorted oldest-first.
@@ -199,12 +201,16 @@ func buildEvents(purchases []*models.Purchase, sales []models.Sale) []stockEvent
 			if it.CommissionPerUnit != nil {
 				ei.commissionPerUnit = *it.CommissionPerUnit
 			}
+			if it.ImportVAT != nil && it.Quantity > 0 {
+				ei.importVATPerUnit = *it.ImportVAT / float64(it.Quantity)
+			}
 			items = append(items, ei)
 		}
 		events = append(events, stockEvent{
 			when:       eventTime(pur.PurchaseDate, pur.CreatedAt),
 			isPurchase: true,
 			isVAT:      pur.IsVAT,
+			isImport:   pur.IsImport(),
 			items:      items,
 		})
 	}
@@ -249,7 +255,11 @@ func applyEvent(ev stockEvent, productByID map[string]*models.Product, missing m
 
 		if ev.isPurchase {
 			effectivePrice := it.unitPrice + it.preformUnitPrice + it.commissionPerUnit
-			product.UpdatePrice(effectivePrice, ev.isVAT, true, it.quantity)
+			if ev.isImport {
+				product.UpdateImportPurchasePrice(effectivePrice+it.importVATPerUnit, it.quantity)
+			} else {
+				product.UpdatePrice(effectivePrice, ev.isVAT, true, it.quantity)
+			}
 			handlers.ApplyStockAdjustment(product, models.AdjustmentTypeAdd, stockType, it.quantity)
 
 			if it.preformProductID != "" {
@@ -282,6 +292,7 @@ func resetToBaseline(p *models.Product) {
 
 	resetPriceInfo(&p.Price.PurchaseVAT)
 	resetPriceInfo(&p.Price.PurchaseNonVAT)
+	resetPriceInfo(&p.Price.PurchaseImport)
 	resetPriceInfo(&p.Price.SaleVAT)
 	resetPriceInfo(&p.Price.SaleNonVAT)
 	// p.Price.SalesTiers is intentionally preserved (manually configured).
@@ -304,11 +315,13 @@ func recomputeYTDMTD(events []stockEvent, productByID map[string]*models.Product
 		ytdAmount, mtdAmount float64
 		ytdSeen, mtdSeen     bool
 	}
-	// bucket index: 0=purchaseVAT 1=purchaseNonVAT 2=saleVAT 3=saleNonVAT
-	accs := map[string]*[4]acc{}
+	// bucket index: 0=purchaseVAT 1=purchaseNonVAT 2=saleVAT 3=saleNonVAT 4=purchaseImport
+	accs := map[string]*[5]acc{}
 
-	bucketIndex := func(isPurchase, isVAT bool) int {
+	bucketIndex := func(isPurchase, isVAT, isImport bool) int {
 		switch {
+		case isPurchase && isImport:
+			return 4
 		case isPurchase && isVAT:
 			return 0
 		case isPurchase && !isVAT:
@@ -326,7 +339,7 @@ func recomputeYTDMTD(events []stockEvent, productByID map[string]*models.Product
 		if !inYear {
 			continue
 		}
-		idx := bucketIndex(ev.isPurchase, ev.isVAT)
+		idx := bucketIndex(ev.isPurchase, ev.isVAT, ev.isImport)
 		for _, it := range ev.items {
 			if _, ok := productByID[it.productID]; !ok {
 				continue
@@ -334,12 +347,15 @@ func recomputeYTDMTD(events []stockEvent, productByID map[string]*models.Product
 			price := it.unitPrice
 			if ev.isPurchase {
 				price += it.preformUnitPrice + it.commissionPerUnit
+				if ev.isImport {
+					price += it.importVATPerUnit
+				}
 			}
 			amount := price * float64(it.quantity)
 
 			a := accs[it.productID]
 			if a == nil {
-				a = &[4]acc{}
+				a = &[5]acc{}
 				accs[it.productID] = a
 			}
 			a[idx].ytdSeen = true
@@ -355,9 +371,10 @@ func recomputeYTDMTD(events []stockEvent, productByID map[string]*models.Product
 
 	for id, a := range accs {
 		p := productByID[id]
-		buckets := [4]*models.PriceInfo{
+		buckets := [5]*models.PriceInfo{
 			&p.Price.PurchaseVAT, &p.Price.PurchaseNonVAT,
 			&p.Price.SaleVAT, &p.Price.SaleNonVAT,
+			&p.Price.PurchaseImport,
 		}
 		for i, pi := range buckets {
 			applyPeriodAcc(pi, year, month, a[i])
@@ -421,6 +438,7 @@ func productChanged(p *models.Product) bool {
 func priceChanged(a, b models.Price) bool {
 	return a.PurchaseVAT != b.PurchaseVAT ||
 		a.PurchaseNonVAT != b.PurchaseNonVAT ||
+		a.PurchaseImport != b.PurchaseImport ||
 		a.SaleVAT != b.SaleVAT ||
 		a.SaleNonVAT != b.SaleNonVAT
 }

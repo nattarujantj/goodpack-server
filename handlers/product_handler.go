@@ -513,7 +513,13 @@ func (h *ProductHandler) GetProductPurchases(w http.ResponseWriter, r *http.Requ
 				continue
 			}
 			var totalVAT, grandTotal float64
-			if p.IsVAT {
+			if p.IsImport() {
+				// นำเข้า: VAT จริงตามใบขน
+				if item.ImportVAT != nil {
+					totalVAT = utils.RoundTo2(*item.ImportVAT)
+				}
+				grandTotal = item.TotalPrice + totalVAT
+			} else if p.IsVAT {
 				if p.VATType == "inclusive" {
 					totalVAT = utils.RoundTo2(item.TotalPrice - (item.TotalPrice / 1.07))
 					grandTotal = item.TotalPrice
@@ -524,16 +530,22 @@ func (h *ProductHandler) GetProductPurchases(w http.ResponseWriter, r *http.Requ
 			} else {
 				grandTotal = item.TotalPrice
 			}
+			var declarationNo string
+			if p.ImportCustoms != nil {
+				declarationNo = p.ImportCustoms.DeclarationNo
+			}
 			items = append(items, models.ProductTransactionItem{
-				ID:           p.ID.Hex(),
-				DocumentCode: p.PurchaseCode,
-				Date:         p.PurchaseDate,
-				PartnerName:  p.SupplierName,
-				Quantity:     item.Quantity,
-				UnitPrice:    item.UnitPrice,
-				TotalPrice:   item.TotalPrice,
-				TotalVAT:     totalVAT,
-				GrandTotal:   grandTotal,
+				IsImport:      p.IsImport(),
+				DeclarationNo: declarationNo,
+				ID:            p.ID.Hex(),
+				DocumentCode:  p.PurchaseCode,
+				Date:          p.PurchaseDate,
+				PartnerName:   p.SupplierName,
+				Quantity:      item.Quantity,
+				UnitPrice:     item.UnitPrice,
+				TotalPrice:    item.TotalPrice,
+				TotalVAT:      totalVAT,
+				GrandTotal:    grandTotal,
 			})
 			break
 		}
