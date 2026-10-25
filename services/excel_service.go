@@ -446,8 +446,9 @@ func (s *ExcelService) createExpenseSheet(f *excelize.File, sheet string, expens
 	f.SetColWidth(sheet, "B", "B", 25)
 	f.SetColWidth(sheet, "C", "C", 40)
 	f.SetColWidth(sheet, "D", "D", 12)
-	f.SetColWidth(sheet, "E", "E", 15)
-	f.SetColWidth(sheet, "F", "F", 30)
+	f.SetColWidth(sheet, "E", "G", 15)
+	f.SetColWidth(sheet, "H", "H", 25)
+	f.SetColWidth(sheet, "I", "I", 30)
 
 	titleStyle, _ := f.NewStyle(&excelize.Style{
 		Font:      &excelize.Font{Bold: true, Size: 14},
@@ -489,40 +490,52 @@ func (s *ExcelService) createExpenseSheet(f *excelize.File, sheet string, expens
 		},
 	})
 
-	f.MergeCell(sheet, "A1", "F1")
+	f.MergeCell(sheet, "A1", "I1")
 	f.SetCellValue(sheet, "A1", fmt.Sprintf("ค่าใช้จ่าย - %s %d", monthName, year))
-	f.SetCellStyle(sheet, "A1", "F1", titleStyle)
+	f.SetCellStyle(sheet, "A1", "I1", titleStyle)
 
-	headers := []string{"ลำดับ", "หมวดหมู่", "รายละเอียด", "วันที่", "จำนวนเงิน", "หมายเหตุ"}
+	headers := []string{"ลำดับ", "หมวดหมู่", "รายละเอียด", "วันที่", "ก่อน VAT", "VAT", "จำนวนเงิน", "ผู้ขาย / เลขที่ใบกำกับ", "หมายเหตุ"}
 	for i, h := range headers {
 		cell := fmt.Sprintf("%c3", 'A'+i)
 		f.SetCellValue(sheet, cell, h)
 	}
-	f.SetCellStyle(sheet, "A3", "F3", headerStyle)
+	f.SetCellStyle(sheet, "A3", "I3", headerStyle)
 
-	var sumAmount float64
+	var sumBeforeVAT, sumVAT, sumAmount float64
 
 	for i, exp := range expenses {
 		row := i + 4
+		text := func(col string, v interface{}) {
+			cell := fmt.Sprintf("%s%d", col, row)
+			f.SetCellValue(sheet, cell, v)
+			f.SetCellStyle(sheet, cell, cell, dataStyle)
+		}
+		number := func(col string, v float64) {
+			cell := fmt.Sprintf("%s%d", col, row)
+			f.SetCellValue(sheet, cell, v)
+			f.SetCellStyle(sheet, cell, cell, numberStyle)
+		}
 
-		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), i+1)
-		f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), dataStyle)
+		invoice := exp.Vendor
+		if exp.TaxInvoiceNo != "" {
+			if invoice != "" {
+				invoice += " / "
+			}
+			invoice += exp.TaxInvoiceNo
+		}
 
-		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), exp.Category)
-		f.SetCellStyle(sheet, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), dataStyle)
+		text("A", i+1)
+		text("B", exp.Category)
+		text("C", exp.Description)
+		text("D", exp.ExpenseDate.Format("02/01/2006"))
+		number("E", exp.AmountBeforeVAT())
+		number("F", exp.VAT)
+		number("G", exp.Amount)
+		text("H", invoice)
+		text("I", exp.Notes)
 
-		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), exp.Description)
-		f.SetCellStyle(sheet, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), dataStyle)
-
-		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), exp.ExpenseDate.Format("02/01/2006"))
-		f.SetCellStyle(sheet, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), dataStyle)
-
-		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), exp.Amount)
-		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), numberStyle)
-
-		f.SetCellValue(sheet, fmt.Sprintf("F%d", row), exp.Notes)
-		f.SetCellStyle(sheet, fmt.Sprintf("F%d", row), fmt.Sprintf("F%d", row), dataStyle)
-
+		sumBeforeVAT += exp.AmountBeforeVAT()
+		sumVAT += exp.VAT
 		sumAmount += exp.Amount
 	}
 
@@ -530,8 +543,11 @@ func (s *ExcelService) createExpenseSheet(f *excelize.File, sheet string, expens
 	f.SetCellValue(sheet, fmt.Sprintf("D%d", summaryRow), "รวมทั้งหมด:")
 	f.SetCellStyle(sheet, fmt.Sprintf("D%d", summaryRow), fmt.Sprintf("D%d", summaryRow), headerStyle)
 
-	f.SetCellValue(sheet, fmt.Sprintf("E%d", summaryRow), sumAmount)
-	f.SetCellStyle(sheet, fmt.Sprintf("E%d", summaryRow), fmt.Sprintf("E%d", summaryRow), numberStyle)
+	for col, v := range map[string]float64{"E": sumBeforeVAT, "F": sumVAT, "G": sumAmount} {
+		cell := fmt.Sprintf("%s%d", col, summaryRow)
+		f.SetCellValue(sheet, cell, v)
+		f.SetCellStyle(sheet, cell, cell, numberStyle)
+	}
 }
 
 // Helper function to format time as Thai date
