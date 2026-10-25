@@ -174,7 +174,11 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 		f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("A%d", row), dataStyle)
 
 		// รหัส
-		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), p.PurchaseCode)
+		code := p.PurchaseCode
+		if p.IsImport() && p.ImportCustoms != nil && p.ImportCustoms.DeclarationNo != "" {
+			code += " (ใบขน " + p.ImportCustoms.DeclarationNo + ")"
+		}
+		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), code)
 		f.SetCellStyle(sheet, fmt.Sprintf("B%d", row), fmt.Sprintf("B%d", row), dataStyle)
 
 		// วันที่

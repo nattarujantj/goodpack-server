@@ -513,7 +513,13 @@ func (h *ProductHandler) GetProductPurchases(w http.ResponseWriter, r *http.Requ
 				continue
 			}
 			var totalVAT, grandTotal float64
-			if p.IsVAT {
+			if p.IsImport() {
+				// นำเข้า: VAT จริงตามใบขน
+				if item.ImportVAT != nil {
+					totalVAT = utils.RoundTo2(*item.ImportVAT)
+				}
+				grandTotal = item.TotalPrice + totalVAT
+			} else if p.IsVAT {
 				if p.VATType == "inclusive" {
 					totalVAT = utils.RoundTo2(item.TotalPrice - (item.TotalPrice / 1.07))
 					grandTotal = item.TotalPrice

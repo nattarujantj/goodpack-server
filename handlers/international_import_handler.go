@@ -318,11 +318,25 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 	}
 	id := pathParts[len(pathParts)-2]
 
+	// vatMode: "vat" (VAT นอก 7%), "nonvat" or "import" (VAT ตามใบขน).
+	// isVAT is kept for older clients that do not send vatMode.
 	var body struct {
-		IsVAT bool `json:"isVAT"`
+		IsVAT   bool   `json:"isVAT"`
+		VATMode string `json:"vatMode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		body.IsVAT = true
+	}
+	mode := body.VATMode
+	if mode == "" {
+		mode = models.ImportVATModeNonVAT
+		if body.IsVAT {
+			mode = models.ImportVATModeVAT
+		}
+	}
+	if mode != models.ImportVATModeVAT && mode != models.ImportVATModeNonVAT && mode != models.ImportVATModeImport {
+		http.Error(w, "Invalid vatMode", http.StatusBadRequest)
+		return
 	}
 
 	imp, err := h.importRepo.GetByID(ctx, id)
@@ -336,7 +350,12 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 		return
 	}
 
-	purchaseReq := imp.ToPurchaseRequest(body.IsVAT)
+	if mode == models.ImportVATModeImport && !imp.CanCreateImportPurchase() {
+		http.Error(w, "Import purchase requires an FCL import with its customs declaration VAT entered", http.StatusBadRequest)
+		return
+	}
+
+	purchaseReq := imp.ToPurchaseRequest(mode)
 
 	supplier, err := h.supplierRepo.GetByID(purchaseReq.SupplierID)
 	if err != nil {
@@ -371,7 +390,9 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 	purchaseID := purchase.ID.Hex()
 	imp.Status = "purchased"
 	imp.PurchaseID = &purchaseID
-	imp.PurchaseIsVAT = &body.IsVAT
+	isVAT := purchase.IsVAT
+	imp.PurchaseIsVAT = &isVAT
+	imp.PurchaseVATMode = &mode
 	imp.UpdatedAt = utils.NowInThailand()
 
 	if err := h.importRepo.Update(ctx, id, imp); err != nil {
@@ -433,6 +454,7 @@ func (h *InternationalImportHandler) CancelPurchaseFromImport(w http.ResponseWri
 	imp.Status = "confirmed"
 	imp.PurchaseID = nil
 	imp.PurchaseIsVAT = nil
+	imp.PurchaseVATMode = nil
 	imp.UpdatedAt = utils.NowInThailand()
 
 	if err := h.importRepo.Update(ctx, id, imp); err != nil {
