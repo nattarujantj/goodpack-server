@@ -197,3 +197,20 @@ func (r *PurchaseRepository) GetNextSequenceNumber(ctx context.Context, prefix s
 	// If no previous purchase found or parsing failed, start from 1
 	return 1, nil
 }
+
+// GetByDepositIDs คืนรายการซื้อที่หักเงินมัดจำก้อนใดก้อนหนึ่งใน depositIDs
+func (r *PurchaseRepository) GetByDepositIDs(ctx context.Context, depositIDs []string) ([]*models.Purchase, error) {
+	purchases := []*models.Purchase{}
+	if len(depositIDs) == 0 {
+		return purchases, nil
+	}
+	cursor, err := r.collection.Find(ctx, bson.M{"depositApplications.depositId": bson.M{"$in": depositIDs}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	if err := cursor.All(ctx, &purchases); err != nil {
+		return nil, err
+	}
+	return purchases, nil
+}

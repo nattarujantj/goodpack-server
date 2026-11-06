@@ -31,6 +31,7 @@ func SetupRoutes(
 	internationalImportRepo *repository.InternationalImportRepository,
 	fclShipmentRepo *repository.FCLShipmentRepository,
 	expenseRepo *repository.ExpenseRepository,
+	depositRepo *repository.DepositRepository,
 	userRepo *repository.UserRepository,
 	inventorySnapshotRepo *repository.InventorySnapshotRepository,
 	jwtSecret string,
@@ -45,8 +46,10 @@ func SetupRoutes(
 	productHandler := handlers.NewProductHandler(productRepo, purchaseRepo, saleRepo, customerRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo, saleRepo)
 	supplierHandler := handlers.NewSupplierHandler(supplierRepo, purchaseRepo)
-	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, supplierRepo, productRepo, stockAdjustmentRepo)
-	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo, stockAdjustmentRepo)
+	depositLedger := handlers.NewDepositLedger(depositRepo, saleRepo, purchaseRepo)
+	purchaseHandler := handlers.NewPurchaseHandler(purchaseRepo, supplierRepo, productRepo, stockAdjustmentRepo, depositLedger)
+	saleHandler := handlers.NewSaleHandler(saleRepo, customerRepo, productRepo, quotationRepo, stockAdjustmentRepo, depositLedger)
+	depositHandler := handlers.NewDepositHandler(depositRepo, customerRepo, supplierRepo, depositLedger)
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
 	purchaseOrderHandler := handlers.NewPurchaseOrderHandler(purchaseOrderRepo, supplierRepo, productRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
@@ -159,6 +162,13 @@ func SetupRoutes(
 	api.HandleFunc("/expenses/{id}", expenseHandler.DeleteExpense).Methods("DELETE")
 	api.HandleFunc("/expenses/{id}/attachments", expenseHandler.UploadAttachment).Methods("POST")
 	api.HandleFunc("/expenses/{id}/attachments/{attachmentId}", expenseHandler.DeleteAttachment).Methods("DELETE")
+
+	// Deposit routes (เงินมัดจำ: ลูกค้าวางมัดจำกับเรา / เราวางมัดจำกับซัพพลายเออร์)
+	api.HandleFunc("/deposits", depositHandler.GetDeposits).Methods("GET")
+	api.HandleFunc("/deposits", depositHandler.CreateDeposit).Methods("POST")
+	api.HandleFunc("/deposits/{id}", depositHandler.GetDeposit).Methods("GET")
+	api.HandleFunc("/deposits/{id}", depositHandler.UpdateDeposit).Methods("PUT")
+	api.HandleFunc("/deposits/{id}", depositHandler.DeleteDeposit).Methods("DELETE")
 
 	// Export routes
 	api.HandleFunc("/export/email", exportHandler.ExportAndSendEmail).Methods("POST")

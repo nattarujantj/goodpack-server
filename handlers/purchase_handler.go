@@ -19,15 +19,38 @@ type PurchaseHandler struct {
 	supplierRepo        *repository.SupplierRepository
 	productRepo         *repository.ProductRepository
 	stockAdjustmentRepo *repository.StockAdjustmentRepository
+	depositLedger       *DepositLedger
 }
 
-func NewPurchaseHandler(purchaseRepo *repository.PurchaseRepository, supplierRepo *repository.SupplierRepository, productRepo *repository.ProductRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) *PurchaseHandler {
+// NewPurchaseHandler สร้าง handler รายการซื้อ; depositLedger เป็น nil ได้
+// ถ้าใช้ handler เพื่อปรับสต็อก/ราคาอย่างเดียว (เช่น จากรายการนำเข้า)
+func NewPurchaseHandler(purchaseRepo *repository.PurchaseRepository, supplierRepo *repository.SupplierRepository, productRepo *repository.ProductRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository, depositLedger *DepositLedger) *PurchaseHandler {
 	return &PurchaseHandler{
+		depositLedger:       depositLedger,
 		purchaseRepo:        purchaseRepo,
 		supplierRepo:        supplierRepo,
 		productRepo:         productRepo,
 		stockAdjustmentRepo: stockAdjustmentRepo,
 	}
+}
+
+// resolveDeposits ตรวจสอบเงินมัดจำที่เราวางไว้กับซัพพลายเออร์และเลือกหักในรายการซื้อ
+func (h *PurchaseHandler) resolveDeposits(ctx context.Context, w http.ResponseWriter, req *models.PurchaseRequest, purchaseID string) bool {
+	if h.depositLedger == nil {
+		req.DepositApplications = nil
+		return true
+	}
+	apps, err := h.depositLedger.ResolveApplications(ctx, req.DepositApplications, models.DepositTypeSupplier, req.SupplierID, purchaseID)
+	if err != nil {
+		if _, ok := err.(*DepositValidationError); ok {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, "Failed to validate deposits", http.StatusInternalServerError)
+		}
+		return false
+	}
+	req.DepositApplications = apps
+	return true
 }
 
 // enrichPurchaseWithSupplierData enriches a purchase with supplier data
@@ -147,6 +170,10 @@ func (h *PurchaseHandler) CreatePurchase(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if !h.resolveDeposits(ctx, w, &purchaseRequest, "") {
+		return
+	}
+
 	purchase := purchaseRequest.ToPurchase()
 	purchase.SupplierName = supplier.CompanyName
 	if purchase.SupplierName == "" {
@@ -229,6 +256,10 @@ func (h *PurchaseHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request)
 	supplier, err := h.supplierRepo.GetByID(purchaseRequest.SupplierID)
 	if err != nil {
 		http.Error(w, "Supplier not found", http.StatusBadRequest)
+		return
+	}
+
+	if !h.resolveDeposits(ctx, w, &purchaseRequest, id) {
 		return
 	}
 

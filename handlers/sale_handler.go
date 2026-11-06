@@ -20,10 +20,12 @@ type SaleHandler struct {
 	quotationRepo       *repository.QuotationRepository
 	stockAdjustmentRepo *repository.StockAdjustmentRepository
 	bankAccountService  *services.BankAccountService
+	depositLedger       *DepositLedger
 }
 
-func NewSaleHandler(saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, quotationRepo *repository.QuotationRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository) *SaleHandler {
+func NewSaleHandler(saleRepo *repository.SaleRepository, customerRepo *repository.CustomerRepository, productRepo *repository.ProductRepository, quotationRepo *repository.QuotationRepository, stockAdjustmentRepo *repository.StockAdjustmentRepository, depositLedger *DepositLedger) *SaleHandler {
 	return &SaleHandler{
+		depositLedger:       depositLedger,
 		saleRepo:            saleRepo,
 		customerRepo:        customerRepo,
 		productRepo:         productRepo,
@@ -58,6 +60,29 @@ func (h *SaleHandler) enrichSaleWithBankAccountData(sale *models.Sale) {
 			sale.Payment.OurAccountInfo = bankAccount
 		}
 	}
+}
+
+// resolveDeposits ตรวจสอบเงินมัดจำของลูกค้าที่เลือกหักในรายการขาย แล้วใส่ลงใน request
+// ถ้ามีการเลือกมัดจำ ยอด Deposit จะเท่ากับผลรวมของมัดจำที่หัก
+// (ถ้าไม่ได้เลือก จะคงค่า Deposit ที่กรอกเอง เพื่อรองรับรายการเก่า)
+func (h *SaleHandler) resolveDeposits(ctx context.Context, w http.ResponseWriter, req *models.SaleRequest, saleID string) bool {
+	apps, err := h.depositLedger.ResolveApplications(ctx, req.DepositApplications, models.DepositTypeCustomer, req.CustomerID, saleID)
+	if err != nil {
+		if _, ok := err.(*DepositValidationError); ok {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, "Failed to validate deposits", http.StatusInternalServerError)
+		}
+		return false
+	}
+	req.DepositApplications = apps
+	if len(apps) > 0 {
+		req.Deposit = models.SumDepositApplications(apps)
+	}
+	if req.Deposit < 0 {
+		req.Deposit = 0
+	}
+	return true
 }
 
 // generateSaleID generates a unique sale ID based on VAT status.
@@ -137,6 +162,10 @@ func (h *SaleHandler) CreateSale(w http.ResponseWriter, r *http.Request) {
 	var saleReq models.SaleRequest
 	if err := json.NewDecoder(r.Body).Decode(&saleReq); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if !h.resolveDeposits(ctx, w, &saleReq, "") {
 		return
 	}
 
@@ -263,6 +292,10 @@ func (h *SaleHandler) UpdateSale(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+
+	if !h.resolveDeposits(ctx, w, &saleReq, id) {
+		return
 	}
 
 	// Reverse stock and rollback price updates for old items

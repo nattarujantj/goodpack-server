@@ -193,3 +193,20 @@ func (r *SaleRepository) GetNextSequenceNumber(ctx context.Context, prefix strin
 
 	return seq + 1, nil
 }
+
+// GetByDepositIDs คืนรายการขายที่หักเงินมัดจำก้อนใดก้อนหนึ่งใน depositIDs
+func (r *SaleRepository) GetByDepositIDs(ctx context.Context, depositIDs []string) ([]models.Sale, error) {
+	sales := []models.Sale{}
+	if len(depositIDs) == 0 {
+		return sales, nil
+	}
+	cursor, err := r.collection.Find(ctx, bson.M{"depositApplications.depositId": bson.M{"$in": depositIDs}})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	if err := cursor.All(ctx, &sales); err != nil {
+		return nil, err
+	}
+	return sales, nil
+}
