@@ -187,11 +187,12 @@ func (h *DepositHandler) UpdateDeposit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(existing.Usages) > 0 {
-		if req.Type != existing.Type || strings.TrimSpace(req.PartyID) != existing.PartyID {
-			http.Error(w, "มัดจำนี้ถูกหักในรายการซื้อ/ขายแล้ว ไม่สามารถเปลี่ยนประเภทหรือคู่ค้าได้", http.StatusBadRequest)
+		if req.Type != existing.Type || strings.TrimSpace(req.PartyID) != existing.PartyID || req.IsVAT != existing.IsVAT {
+			http.Error(w, "มัดจำนี้ถูกหักในรายการซื้อ/ขายแล้ว ไม่สามารถเปลี่ยนประเภท คู่ค้า หรือการมี VAT ได้", http.StatusBadRequest)
 			return
 		}
-		if utils.RoundTo2(req.Amount) < existing.UsedAmount-0.005 {
+		preview := req.ToDeposit()
+		if preview.Deductible() < existing.UsedAmount-0.005 {
 			http.Error(w, fmt.Sprintf("ยอดมัดจำต้องไม่น้อยกว่ายอดที่หักไปแล้ว %s บาท", formatBaht(existing.UsedAmount)), http.StatusBadRequest)
 			return
 		}

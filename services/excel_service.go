@@ -201,13 +201,16 @@ func (s *ExcelService) createPurchaseSheet(f *excelize.File, sheet string, purch
 		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), items)
 		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), dataStyle)
 
-		// Calculate values
-		beforeVAT := p.TotalAmount
+		// ยอดของใบนี้: ก่อน VAT = ยอดรวมของใบ - VAT (ถูกทั้ง VAT นอก/VAT ใน/นำเข้า และหลังหักมัดจำที่ออกใบกำกับแล้ว)
 		vatAmount := p.TotalVAT
 		if !isVAT {
 			vatAmount = 0
 		}
-		afterVAT := beforeVAT + vatAmount
+		afterVAT := p.GrandTotal
+		if afterVAT == 0 && p.TotalAmount != 0 {
+			afterVAT = p.TotalAmount + vatAmount // รายการเก่าที่ไม่มี grandTotal
+		}
+		beforeVAT := utils.RoundTo2(afterVAT - vatAmount)
 		shipping := p.ShippingCost
 		total := afterVAT + shipping
 
@@ -359,32 +362,13 @@ func (s *ExcelService) createSaleSheet(f *excelize.File, sheet string, sales []m
 		f.SetCellValue(sheet, fmt.Sprintf("E%d", row), items)
 		f.SetCellStyle(sheet, fmt.Sprintf("E%d", row), fmt.Sprintf("E%d", row), dataStyle)
 
-		// Calculate values based on vatType
-		var itemsTotal float64
-		for _, item := range sale.Items {
-			itemsTotal += item.TotalPrice
-		}
-
-		var beforeVAT, vatAmount, afterVAT float64
-		shipping := sale.ShippingCost
-
-		if isVAT {
-			if sale.VatType == "inclusive" {
-				// VAT ใน: ราคาที่กรอกรวม VAT แล้ว
-				beforeVAT = utils.RoundTo2(itemsTotal / 1.07)
-				vatAmount = utils.RoundTo2(itemsTotal - beforeVAT)
-				afterVAT = itemsTotal
-			} else {
-				// VAT นอก: ราคา + VAT 7%
-				beforeVAT = itemsTotal
-				vatAmount = utils.RoundTo2(itemsTotal * 0.07)
-				afterVAT = itemsTotal + vatAmount
-			}
-		} else {
-			beforeVAT = itemsTotal
+		// ยอดของใบนี้ (มัดจำที่ออกใบกำกับภาษีแล้วหักก่อนคิด VAT และไปลงในเดือนที่รับมัดจำแทน)
+		totals := sale.Totals()
+		beforeVAT, vatAmount, afterVAT := totals.NetBeforeVAT, totals.VAT, totals.AfterVAT
+		if !isVAT {
 			vatAmount = 0
-			afterVAT = itemsTotal
 		}
+		shipping := sale.ShippingCost
 		total := afterVAT + shipping
 
 		// ราคารวมก่อน VAT

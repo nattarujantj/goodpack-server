@@ -40,7 +40,8 @@ func (h *PurchaseHandler) resolveDeposits(ctx context.Context, w http.ResponseWr
 		req.DepositApplications = nil
 		return true
 	}
-	apps, err := h.depositLedger.ResolveApplications(ctx, req.DepositApplications, models.DepositTypeSupplier, req.SupplierID, purchaseID)
+	allowVAT := req.IsVAT && req.VATType != models.VATTypeImport
+	apps, err := h.depositLedger.ResolveApplications(ctx, req.DepositApplications, models.DepositTypeSupplier, req.SupplierID, purchaseID, allowVAT)
 	if err != nil {
 		if _, ok := err.(*DepositValidationError); ok {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -50,6 +51,20 @@ func (h *PurchaseHandler) resolveDeposits(ctx context.Context, w http.ResponseWr
 		return false
 	}
 	req.DepositApplications = apps
+	if beforeVAT, _ := models.SplitDepositApplications(apps); beforeVAT > 0 {
+		itemsTotal := 0.0
+		for _, it := range req.Items {
+			itemsTotal += it.TotalPrice
+		}
+		itemsBeforeVAT := itemsTotal
+		if req.VATType == "inclusive" {
+			itemsBeforeVAT = itemsTotal / 1.07
+		}
+		if beforeVAT > itemsBeforeVAT+0.005 {
+			http.Error(w, "ยอดหักมัดจำ (ก่อน VAT) เกินยอดสินค้าก่อน VAT ของรายการนี้", http.StatusBadRequest)
+			return false
+		}
+	}
 	return true
 }
 

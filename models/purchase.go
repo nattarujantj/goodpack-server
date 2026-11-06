@@ -31,12 +31,15 @@ type Purchase struct {
 	// Deposit คือเงินมัดจำที่เราวางไว้กับซัพพลายเออร์และหักในรายการนี้ (หักจากยอดที่ต้องชำระหลัง VAT)
 	Deposit             float64              `bson:"deposit" json:"deposit"`
 	DepositApplications []DepositApplication `bson:"depositApplications,omitempty" json:"depositApplications"`
-	Payment             PaymentInfo          `bson:"payment" json:"payment"`
-	Warehouse           WarehouseInfo        `bson:"warehouse" json:"warehouse"`
-	PurchaseOrderCode   *string              `bson:"purchaseOrderCode,omitempty" json:"purchaseOrderCode,omitempty"`
-	TotalAmount         float64              `bson:"totalAmount" json:"totalAmount"`
-	TotalVAT            float64              `bson:"totalVAT" json:"totalVAT"`
-	GrandTotal          float64              `bson:"grandTotal" json:"grandTotal"`
+	// DepositBeforeVAT คือมัดจำที่ซัพพลายเออร์ออกใบกำกับภาษีแล้ว หักก่อนคิด VAT
+	// (TotalAmount ยังเป็นยอดสินค้าเต็ม, TotalVAT/GrandTotal เป็นยอดของใบนี้หลังหักมัดจำ)
+	DepositBeforeVAT  float64       `bson:"depositBeforeVAT" json:"depositBeforeVAT"`
+	Payment           PaymentInfo   `bson:"payment" json:"payment"`
+	Warehouse         WarehouseInfo `bson:"warehouse" json:"warehouse"`
+	PurchaseOrderCode *string       `bson:"purchaseOrderCode,omitempty" json:"purchaseOrderCode,omitempty"`
+	TotalAmount       float64       `bson:"totalAmount" json:"totalAmount"`
+	TotalVAT          float64       `bson:"totalVAT" json:"totalVAT"`
+	GrandTotal        float64       `bson:"grandTotal" json:"grandTotal"`
 }
 
 type PurchaseItem struct {
@@ -148,7 +151,9 @@ type PurchaseRequest struct {
 }
 
 // calculateTotals returns the pre-VAT total, VAT and grand total for the request.
+// มัดจำที่ออกใบกำกับภาษีแล้ว (BeforeVAT) หักออกจากยอดก่อน VAT ก่อนคิด VAT
 func (pr *PurchaseRequest) calculateTotals() (totalAmount, totalVAT, grandTotal float64) {
+	depositBeforeVAT, _ := SplitDepositApplications(pr.DepositApplications)
 	if pr.VATType == VATTypeImport {
 		// รายการนำเข้าเป็น VAT เสมอ
 		pr.IsVAT = true
@@ -162,6 +167,15 @@ func (pr *PurchaseRequest) calculateTotals() (totalAmount, totalVAT, grandTotal 
 
 	if !pr.IsVAT {
 		return totalAmount, 0, totalAmount
+	}
+	if depositBeforeVAT > 0 && pr.VATType != VATTypeImport {
+		itemsBeforeVAT := totalAmount
+		if pr.VATType == "inclusive" {
+			itemsBeforeVAT = totalAmount - utils.RoundTo2(totalAmount-(totalAmount/1.07))
+		}
+		net := utils.RoundTo2(itemsBeforeVAT - depositBeforeVAT)
+		totalVAT = utils.RoundTo2(net * 0.07)
+		return totalAmount, totalVAT, utils.RoundTo2(net + totalVAT)
 	}
 	switch pr.VATType {
 	case "inclusive":
@@ -212,7 +226,8 @@ func (pr *PurchaseRequest) ToPurchase() *Purchase {
 		ImportCustoms:       pr.ImportCustoms,
 		ShippingCost:        pr.ShippingCost,
 		DepositApplications: pr.DepositApplications,
-		Deposit:             SumDepositApplications(pr.DepositApplications),
+		Deposit:             depositAfterVAT(pr.DepositApplications),
+		DepositBeforeVAT:    depositBeforeVAT(pr.DepositApplications),
 		Payment:             pr.Payment,
 		Warehouse:           pr.Warehouse,
 		PurchaseOrderCode:   pr.PurchaseOrderCode,
@@ -238,7 +253,8 @@ func (p *Purchase) UpdateFromRequest(pr *PurchaseRequest) {
 	p.ImportCustoms = pr.ImportCustoms
 	p.ShippingCost = pr.ShippingCost
 	p.DepositApplications = pr.DepositApplications
-	p.Deposit = SumDepositApplications(pr.DepositApplications)
+	p.Deposit = depositAfterVAT(pr.DepositApplications)
+	p.DepositBeforeVAT = depositBeforeVAT(pr.DepositApplications)
 	p.Payment = pr.Payment
 	p.Warehouse = pr.Warehouse
 	p.PurchaseOrderCode = pr.PurchaseOrderCode
@@ -246,4 +262,15 @@ func (p *Purchase) UpdateFromRequest(pr *PurchaseRequest) {
 	p.TotalVAT = totalVAT
 	p.GrandTotal = grandTotal
 	p.UpdatedAt = utils.NowInThailand()
+}
+
+func depositBeforeVAT(apps []DepositApplication) float64 {
+	b, _ := SplitDepositApplications(apps)
+	return b
+}
+
+// depositAfterVAT คือมัดจำที่ไม่มี VAT ซึ่งหักออกจากยอดรวมหลัง VAT
+func depositAfterVAT(apps []DepositApplication) float64 {
+	_, a := SplitDepositApplications(apps)
+	return a
 }

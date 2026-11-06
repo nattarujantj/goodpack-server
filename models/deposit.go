@@ -37,8 +37,14 @@ type Deposit struct {
 	PartyID     string             `bson:"partyId" json:"partyId"` // customerId หรือ supplierId
 	PartyName   string             `bson:"partyName" json:"partyName"`
 	PartyCode   string             `bson:"partyCode,omitempty" json:"partyCode,omitempty"`
-	Amount      float64            `bson:"amount" json:"amount"`
-	DepositDate time.Time          `bson:"depositDate" json:"depositDate"`
+	// Amount คือยอดเงินที่รับ/จ่ายจริง (รวม VAT ถ้ามี)
+	Amount float64 `bson:"amount" json:"amount"`
+	// IsVAT = มัดจำนี้ออกใบกำกับภาษีแล้ว: ส่วนก่อน VAT ใช้หักก่อนคิด VAT ในรายการขาย/ซื้อที่เป็น VAT
+	IsVAT           bool      `bson:"isVAT" json:"isVAT"`
+	VatType         string    `bson:"vatType,omitempty" json:"vatType,omitempty"` // "exclusive" (VAT นอก) หรือ "inclusive" (VAT ใน) ตอนกรอก
+	AmountBeforeVAT float64   `bson:"amountBeforeVAT" json:"amountBeforeVAT"`
+	VATAmount       float64   `bson:"vatAmount" json:"vatAmount"`
+	DepositDate     time.Time `bson:"depositDate" json:"depositDate"`
 	// OurAccount คือบัญชีของเราที่รับ/จ่ายเงินมัดจำ (id จาก config)
 	OurAccount *string   `bson:"ourAccount,omitempty" json:"ourAccount,omitempty"`
 	Reference  string    `bson:"reference,omitempty" json:"reference,omitempty"` // เลขที่ PO/ใบเสร็จ/อ้างอิง
@@ -47,9 +53,11 @@ type Deposit struct {
 	UpdatedAt  time.Time `bson:"updatedAt" json:"updatedAt"`
 
 	// ค่าที่คำนวณจากรายการขาย/ซื้อที่หักมัดจำนี้ (ไม่เก็บใน DB)
-	UsedAmount      float64        `bson:"-" json:"usedAmount"`
-	RemainingAmount float64        `bson:"-" json:"remainingAmount"`
-	Usages          []DepositUsage `bson:"-" json:"usages"`
+	// หน่วยของ Deductible/Used/Remaining: มัดจำ VAT = ยอดก่อน VAT, มัดจำไม่มี VAT = ยอดเงินจริง
+	DeductibleAmount float64        `bson:"-" json:"deductibleAmount"`
+	UsedAmount       float64        `bson:"-" json:"usedAmount"`
+	RemainingAmount  float64        `bson:"-" json:"remainingAmount"`
+	Usages           []DepositUsage `bson:"-" json:"usages"`
 }
 
 // DepositUsage คือการหักเงินมัดจำหนึ่งครั้งในรายการขาย/ซื้อ
@@ -62,10 +70,25 @@ type DepositUsage struct {
 }
 
 // DepositApplication คือยอดมัดจำที่หักในรายการขาย/ซื้อหนึ่งรายการ (เก็บไว้ในรายการขาย/ซื้อ)
+// BeforeVAT = true: เป็นมัดจำที่ออกใบกำกับภาษีแล้ว Amount คือยอดก่อน VAT และหักก่อนคิด VAT
+// BeforeVAT = false: มัดจำไม่มี VAT หักออกจากยอดรวมหลัง VAT
 type DepositApplication struct {
 	DepositID   string  `bson:"depositId" json:"depositId"`
 	DepositCode string  `bson:"depositCode" json:"depositCode"`
 	Amount      float64 `bson:"amount" json:"amount"`
+	BeforeVAT   bool    `bson:"beforeVAT" json:"beforeVAT"`
+}
+
+// SplitDepositApplications แยกยอดมัดจำที่หักก่อน VAT และหลัง VAT
+func SplitDepositApplications(apps []DepositApplication) (beforeVAT, afterVAT float64) {
+	for _, a := range apps {
+		if a.BeforeVAT {
+			beforeVAT += a.Amount
+		} else {
+			afterVAT += a.Amount
+		}
+	}
+	return utils.RoundTo2(beforeVAT), utils.RoundTo2(afterVAT)
 }
 
 // SumDepositApplications รวมยอดมัดจำที่หักทั้งหมด
@@ -114,8 +137,34 @@ func (d *Deposit) ApplyUsages(usages []DepositUsage) {
 	for _, u := range usages {
 		used += u.Amount
 	}
+	d.DeductibleAmount = d.Deductible()
 	d.UsedAmount = utils.RoundTo2(used)
-	d.RemainingAmount = utils.RoundTo2(d.Amount - d.UsedAmount)
+	d.RemainingAmount = utils.RoundTo2(d.DeductibleAmount - d.UsedAmount)
+}
+
+// Deductible คือยอดที่ใช้หักได้ทั้งหมด: มัดจำ VAT ใช้ยอดก่อน VAT (เพราะ VAT ส่วนนี้ออกใบกำกับไปแล้ว)
+func (d *Deposit) Deductible() float64 {
+	if d.IsVAT {
+		return d.AmountBeforeVAT
+	}
+	return d.Amount
+}
+
+// CalculateDepositVAT แยกยอดก่อน VAT / VAT / ยอดรวม จากยอดที่กรอก
+// exclusive: ยอดที่กรอกคือยอดก่อน VAT, inclusive: ยอดที่กรอกรวม VAT แล้ว
+func CalculateDepositVAT(entered float64, isVAT bool, vatType string) (beforeVAT, vat, total float64) {
+	entered = utils.RoundTo2(entered)
+	if !isVAT {
+		return entered, 0, entered
+	}
+	if vatType == "inclusive" {
+		total = entered
+		beforeVAT = utils.RoundTo2(total / 1.07)
+		return beforeVAT, utils.RoundTo2(total - beforeVAT), total
+	}
+	beforeVAT = entered
+	vat = utils.RoundTo2(beforeVAT * 0.07)
+	return beforeVAT, vat, utils.RoundTo2(beforeVAT + vat)
 }
 
 // CanCover บอกว่ายอดคงเหลือ (ไม่นับเอกสารที่กำลังแก้ไข) พอให้หักตามยอดที่ขอหรือไม่
@@ -132,10 +181,13 @@ func DocTypeForDeposit(depositType string) string {
 }
 
 type DepositRequest struct {
-	DepositCode *string   `json:"depositCode,omitempty"`
-	Type        string    `json:"type"`
-	PartyID     string    `json:"partyId"`
+	DepositCode *string `json:"depositCode,omitempty"`
+	Type        string  `json:"type"`
+	PartyID     string  `json:"partyId"`
+	// Amount คือยอดที่กรอก: ไม่มี VAT / VAT นอก = ยอดก่อน VAT, VAT ใน = ยอดรวม VAT
 	Amount      float64   `json:"amount"`
+	IsVAT       bool      `json:"isVAT"`
+	VatType     string    `json:"vatType"`
 	DepositDate time.Time `json:"depositDate"`
 	OurAccount  *string   `json:"ourAccount,omitempty"`
 	Reference   string    `json:"reference,omitempty"`
@@ -161,18 +213,35 @@ func (r *DepositRequest) Validate() error {
 	return nil
 }
 
+func (r *DepositRequest) vatFields() (vatType string, beforeVAT, vat, total float64) {
+	vatType = ""
+	if r.IsVAT {
+		vatType = "exclusive"
+		if r.VatType == "inclusive" {
+			vatType = "inclusive"
+		}
+	}
+	beforeVAT, vat, total = CalculateDepositVAT(r.Amount, r.IsVAT, vatType)
+	return
+}
+
 func (r *DepositRequest) ToDeposit() *Deposit {
 	now := utils.NowInThailand()
+	vatType, beforeVAT, vat, total := r.vatFields()
 	return &Deposit{
-		Type:        r.Type,
-		PartyID:     strings.TrimSpace(r.PartyID),
-		Amount:      utils.RoundTo2(r.Amount),
-		DepositDate: r.DepositDate,
-		OurAccount:  r.OurAccount,
-		Reference:   strings.TrimSpace(r.Reference),
-		Notes:       r.Notes,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		Type:            r.Type,
+		PartyID:         strings.TrimSpace(r.PartyID),
+		Amount:          total,
+		IsVAT:           r.IsVAT,
+		VatType:         vatType,
+		AmountBeforeVAT: beforeVAT,
+		VATAmount:       vat,
+		DepositDate:     r.DepositDate,
+		OurAccount:      r.OurAccount,
+		Reference:       strings.TrimSpace(r.Reference),
+		Notes:           r.Notes,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}
 }
 
@@ -182,7 +251,12 @@ func (d *Deposit) UpdateFromRequest(r *DepositRequest) {
 	}
 	d.Type = r.Type
 	d.PartyID = strings.TrimSpace(r.PartyID)
-	d.Amount = utils.RoundTo2(r.Amount)
+	vatType, beforeVAT, vat, total := r.vatFields()
+	d.Amount = total
+	d.IsVAT = r.IsVAT
+	d.VatType = vatType
+	d.AmountBeforeVAT = beforeVAT
+	d.VATAmount = vat
 	d.DepositDate = r.DepositDate
 	d.OurAccount = r.OurAccount
 	d.Reference = strings.TrimSpace(r.Reference)

@@ -66,7 +66,7 @@ func (h *SaleHandler) enrichSaleWithBankAccountData(sale *models.Sale) {
 // ถ้ามีการเลือกมัดจำ ยอด Deposit จะเท่ากับผลรวมของมัดจำที่หัก
 // (ถ้าไม่ได้เลือก จะคงค่า Deposit ที่กรอกเอง เพื่อรองรับรายการเก่า)
 func (h *SaleHandler) resolveDeposits(ctx context.Context, w http.ResponseWriter, req *models.SaleRequest, saleID string) bool {
-	apps, err := h.depositLedger.ResolveApplications(ctx, req.DepositApplications, models.DepositTypeCustomer, req.CustomerID, saleID)
+	apps, err := h.depositLedger.ResolveApplications(ctx, req.DepositApplications, models.DepositTypeCustomer, req.CustomerID, saleID, req.IsVAT)
 	if err != nil {
 		if _, ok := err.(*DepositValidationError); ok {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -76,8 +76,16 @@ func (h *SaleHandler) resolveDeposits(ctx context.Context, w http.ResponseWriter
 		return false
 	}
 	req.DepositApplications = apps
+	req.DepositBeforeVAT = 0
 	if len(apps) > 0 {
-		req.Deposit = models.SumDepositApplications(apps)
+		beforeVAT, afterVAT := models.SplitDepositApplications(apps)
+		req.DepositBeforeVAT = beforeVAT
+		req.Deposit = afterVAT
+		preview := models.Sale{Items: req.Items, IsVAT: req.IsVAT, VatType: req.VatType}
+		if beforeVAT > preview.Totals().ItemsBeforeVAT+0.005 {
+			http.Error(w, "ยอดหักมัดจำ (ก่อน VAT) เกินยอดสินค้าก่อน VAT ของรายการนี้", http.StatusBadRequest)
+			return false
+		}
 	}
 	if req.Deposit < 0 {
 		req.Deposit = 0

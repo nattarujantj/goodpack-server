@@ -53,7 +53,7 @@ func SetupRoutes(
 	quotationHandler := handlers.NewQuotationHandler(quotationRepo, customerRepo, productRepo)
 	purchaseOrderHandler := handlers.NewPurchaseOrderHandler(purchaseOrderRepo, supplierRepo, productRepo)
 	stockAdjustmentHandler := handlers.NewStockAdjustmentHandler(stockAdjustmentRepo, productRepo)
-	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo, expenseRepo, snapshotService)
+	exportHandler := handlers.NewExportHandler(purchaseRepo, saleRepo, customerRepo, expenseRepo, depositRepo, snapshotService)
 	expenseHandler := handlers.NewExpenseHandler(expenseRepo)
 	shippingCompanyHandler := handlers.NewShippingCompanyHandler(shippingCompanyRepo)
 	internationalImportHandler := handlers.NewInternationalImportHandler(internationalImportRepo, supplierRepo, shippingCompanyRepo, productRepo, purchaseRepo, stockAdjustmentRepo, fclShipmentRepo)

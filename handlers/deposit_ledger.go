@@ -77,7 +77,8 @@ func (l *DepositLedger) Enrich(ctx context.Context, deposits []*models.Deposit, 
 // ResolveApplications ตรวจและเติมข้อมูลการหักมัดจำของรายการขาย/ซื้อ:
 // มัดจำต้องเป็นประเภทที่ถูกต้อง เป็นของลูกค้า/ซัพพลายเออร์เจ้าเดียวกับเอกสาร
 // และยอดที่หักต้องไม่เกินยอดคงเหลือ (ไม่นับยอดที่เอกสารนี้หักไว้เดิม)
-func (l *DepositLedger) ResolveApplications(ctx context.Context, apps []models.DepositApplication, depositType, partyID, docID string) ([]models.DepositApplication, error) {
+// allowVATDeposits: เอกสารเป็น VAT (VAT นอก/VAT ใน) จึงใช้มัดจำที่ออกใบกำกับภาษีแล้วได้ (หักก่อน VAT)
+func (l *DepositLedger) ResolveApplications(ctx context.Context, apps []models.DepositApplication, depositType, partyID, docID string, allowVATDeposits bool) ([]models.DepositApplication, error) {
 	apps = models.NormalizeDepositApplications(apps)
 	if len(apps) == 0 {
 		return []models.DepositApplication{}, nil
@@ -95,6 +96,9 @@ func (l *DepositLedger) ResolveApplications(ctx context.Context, apps []models.D
 		if d.PartyID != partyID {
 			return nil, &DepositValidationError{Message: fmt.Sprintf("เงินมัดจำ %s เป็นของ %s ไม่ใช่คู่ค้าของรายการนี้", d.DepositCode, d.PartyName)}
 		}
+		if d.IsVAT && !allowVATDeposits {
+			return nil, &DepositValidationError{Message: fmt.Sprintf("เงินมัดจำ %s มี VAT (ออกใบกำกับภาษีแล้ว) ใช้หักได้เฉพาะรายการที่เป็น VAT นอก/VAT ใน", d.DepositCode)}
+		}
 		deposits = append(deposits, d)
 	}
 
@@ -109,6 +113,7 @@ func (l *DepositLedger) ResolveApplications(ctx context.Context, apps []models.D
 				d.DepositCode, formatBaht(d.RemainingAmount), formatBaht(apps[i].Amount))}
 		}
 		apps[i].DepositCode = d.DepositCode
+		apps[i].BeforeVAT = d.IsVAT
 	}
 	return apps, nil
 }
