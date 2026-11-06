@@ -28,8 +28,11 @@ func TestDepositUsedAcrossMultipleDocuments(t *testing.T) {
 	if !d.CanCover(70000) {
 		t.Fatal("remaining 70,000 should cover 70,000")
 	}
-	if d.CanCover(70000.01) {
-		t.Fatal("remaining 70,000 should not cover 70,000.01")
+	if !d.CanCover(70000.01) {
+		t.Fatal("1 satang rounding difference should be allowed")
+	}
+	if d.CanCover(70000.10) {
+		t.Fatal("remaining 70,000 should not cover 70,000.10")
 	}
 }
 
@@ -104,5 +107,22 @@ func TestPurchaseTotalsWithDeposits(t *testing.T) {
 	}
 	if p.DepositBeforeVAT != 30000 || p.Deposit != 5000 {
 		t.Fatalf("deposits: before=%v after=%v", p.DepositBeforeVAT, p.Deposit)
+	}
+}
+
+// มัดจำ 10,000 รวม VAT แบ่งหักใบขาย VAT ใน 5,000 สองใบ ต้องหักได้ครบและทั้งสองใบเหลือศูนย์
+func TestVATInclusiveDepositSplitsToZero(t *testing.T) {
+	before, _, _ := CalculateDepositVAT(10000, true, "inclusive")
+	d := &Deposit{IsVAT: true, Amount: 10000, AmountBeforeVAT: before}
+	sale := Sale{IsVAT: true, VatType: "inclusive", Items: []SaleItem{{TotalPrice: 5000}}}
+	need := sale.Totals().ItemsBeforeVAT
+
+	d.ApplyUsages([]DepositUsage{{Amount: need}})
+	if !d.CanCover(need) {
+		t.Fatalf("second sale should be coverable: remaining %v need %v", d.RemainingAmount, need)
+	}
+	sale.DepositBeforeVAT = need
+	if tt := sale.Totals(); tt.AfterVAT != 0 || tt.VAT != 0 {
+		t.Fatalf("sale should be zero: %+v", tt)
 	}
 }

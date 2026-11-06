@@ -25,8 +25,11 @@ const (
 	DepositDocPurchase = "purchase"
 )
 
-// depositTolerance กันปัดเศษทศนิยมตอนเทียบยอดคงเหลือ
-const depositTolerance = 0.005
+// DepositRoundingTolerance คือส่วนต่างจากการปัดเศษที่ยอมให้หักเกินยอดคงเหลือได้ (ไม่เกิน 5 สตางค์)
+// เช่น มัดจำ 10,000 รวม VAT (ก่อน VAT 9,345.79) แบ่งหักในใบขาย VAT ใน 5,000 สองใบ
+// แต่ละใบมียอดก่อน VAT 4,672.90 รวมกัน 9,345.80 เกินไป 1 สตางค์ ก็ยังหักให้ใบสุดท้ายเป็นศูนย์ได้
+// มัดจำที่เหลือไม่เกินค่านี้ถือว่าใช้หมดแล้ว
+const DepositRoundingTolerance = 0.05
 
 // Deposit คือเงินมัดจำหนึ่งก้อน ซึ่งทยอยหักได้จากหลายรายการขาย/รายการซื้อ
 // ของลูกค้า/ซัพพลายเออร์เจ้าเดียวกัน
@@ -169,7 +172,7 @@ func CalculateDepositVAT(entered float64, isVAT bool, vatType string) (beforeVAT
 
 // CanCover บอกว่ายอดคงเหลือ (ไม่นับเอกสารที่กำลังแก้ไข) พอให้หักตามยอดที่ขอหรือไม่
 func (d *Deposit) CanCover(amount float64) bool {
-	return amount <= d.RemainingAmount+depositTolerance
+	return amount <= d.RemainingAmount+DepositRoundingTolerance
 }
 
 // DocTypeForDeposit คือประเภทเอกสารที่ใช้หักมัดจำแต่ละประเภท

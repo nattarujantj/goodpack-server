@@ -98,7 +98,7 @@ func (h *DepositHandler) GetDeposits(w http.ResponseWriter, r *http.Request) {
 	if q.Get("available") == "true" {
 		filtered := []*models.Deposit{}
 		for _, d := range deposits {
-			if d.RemainingAmount > 0.005 {
+			if d.RemainingAmount > models.DepositRoundingTolerance {
 				filtered = append(filtered, d)
 			}
 		}
@@ -192,7 +192,7 @@ func (h *DepositHandler) UpdateDeposit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		preview := req.ToDeposit()
-		if preview.Deductible() < existing.UsedAmount-0.005 {
+		if preview.Deductible() < existing.UsedAmount-models.DepositRoundingTolerance {
 			http.Error(w, fmt.Sprintf("ยอดมัดจำต้องไม่น้อยกว่ายอดที่หักไปแล้ว %s บาท", formatBaht(existing.UsedAmount)), http.StatusBadRequest)
 			return
 		}
