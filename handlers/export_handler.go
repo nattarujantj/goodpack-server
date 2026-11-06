@@ -17,6 +17,7 @@ type ExportHandler struct {
 	saleRepo        *repository.SaleRepository
 	customerRepo    *repository.CustomerRepository
 	expenseRepo     *repository.ExpenseRepository
+	depositRepo     *repository.DepositRepository
 	snapshotService *services.InventorySnapshotService
 	excelService    *services.ExcelService
 	emailService    *services.EmailService
@@ -27,6 +28,7 @@ func NewExportHandler(
 	saleRepo *repository.SaleRepository,
 	customerRepo *repository.CustomerRepository,
 	expenseRepo *repository.ExpenseRepository,
+	depositRepo *repository.DepositRepository,
 	snapshotService *services.InventorySnapshotService,
 ) *ExportHandler {
 	return &ExportHandler{
@@ -34,6 +36,7 @@ func NewExportHandler(
 		saleRepo:        saleRepo,
 		customerRepo:    customerRepo,
 		expenseRepo:     expenseRepo,
+		depositRepo:     depositRepo,
 		snapshotService: snapshotService,
 		excelService:    services.NewExcelService(),
 		emailService:    services.NewEmailService(),
@@ -163,6 +166,27 @@ func (h *ExportHandler) ExportAndSendEmail(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// มัดจำที่ออกใบกำกับภาษีแล้ว: ลงภาษีขาย/ภาษีซื้อในเดือนที่รับ/จ่ายมัดจำ
+	// (รายการขาย/ซื้อที่หักมัดจำนี้ภายหลังจะคิด VAT จากยอดหลังหักมัดจำแล้ว)
+	if h.depositRepo != nil {
+		deposits, err := h.depositRepo.GetAll(ctx, "", "")
+		if err != nil {
+			log.Printf("⚠️ Failed to fetch deposits: %v", err)
+		}
+		for _, d := range deposits {
+			if !d.IsVAT || d.DepositDate.Before(startDate) || d.DepositDate.After(endDate) {
+				continue
+			}
+			if d.Type == models.DepositTypeCustomer {
+				sale := depositAsSale(d)
+				h.enrichSaleWithCustomerData(&sale)
+				sales = append(sales, sale)
+			} else {
+				purchases = append(purchases, depositAsPurchase(d))
+			}
+		}
+	}
+
 	log.Printf("📊 Found %d purchases, %d sales, %d expenses for %d/%d", len(purchases), len(sales), len(expenses), req.Month, req.Year)
 
 	// Optionally fetch inventory snapshot
@@ -233,4 +257,48 @@ func sendErrorResponse(w http.ResponseWriter, message string) {
 		Success: false,
 		Message: message,
 	})
+}
+
+func depositDescription(d *models.Deposit) string {
+	desc := "เงินมัดจำ"
+	if d.Reference != "" {
+		desc += " อ้างอิง " + d.Reference
+	}
+	return desc
+}
+
+// depositAsSale แปลงใบรับเงินมัดจำ/ใบกำกับภาษีเป็นแถวในชีต "ขาย VAT"
+func depositAsSale(d *models.Deposit) models.Sale {
+	price := d.AmountBeforeVAT
+	vatType := "exclusive"
+	if d.VatType == "inclusive" {
+		// ใช้สูตร VAT ใน เพื่อให้ VAT ตรงกับใบกำกับภาษีมัดจำ
+		price = d.Amount
+		vatType = "inclusive"
+	}
+	return models.Sale{
+		SaleCode:     d.DepositCode,
+		SaleDate:     d.DepositDate,
+		CustomerID:   d.PartyID,
+		CustomerName: d.PartyName,
+		IsVAT:        true,
+		VatType:      vatType,
+		Items:        []models.SaleItem{{ProductName: depositDescription(d), Quantity: 1, UnitPrice: price, TotalPrice: price}},
+	}
+}
+
+// depositAsPurchase แปลงมัดจำที่เราวางกับซัพพลายเออร์ (มีใบกำกับภาษี) เป็นแถวในชีต "ซื้อ VAT"
+func depositAsPurchase(d *models.Deposit) models.Purchase {
+	return models.Purchase{
+		PurchaseCode: d.DepositCode,
+		PurchaseDate: d.DepositDate,
+		SupplierID:   d.PartyID,
+		SupplierName: d.PartyName,
+		IsVAT:        true,
+		VATType:      d.VatType,
+		Items:        []models.PurchaseItem{{ProductName: depositDescription(d), Quantity: 1, UnitPrice: d.AmountBeforeVAT, TotalPrice: d.AmountBeforeVAT}},
+		TotalAmount:  d.AmountBeforeVAT,
+		TotalVAT:     d.VATAmount,
+		GrandTotal:   d.Amount,
+	}
 }

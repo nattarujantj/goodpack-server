@@ -377,7 +377,7 @@ func (h *InternationalImportHandler) CreatePurchaseFromImport(w http.ResponseWri
 	}
 	purchase.ContactName = &supplier.ContactName
 
-	purchaseHandler := NewPurchaseHandler(h.purchaseRepo, h.supplierRepo, h.productRepo, h.stockAdjustmentRepo)
+	purchaseHandler := NewPurchaseHandler(h.purchaseRepo, h.supplierRepo, h.productRepo, h.stockAdjustmentRepo, nil)
 	purchaseCode, err := purchaseHandler.generatePurchaseID(ctx, purchase.IsVAT)
 	if err != nil {
 		http.Error(w, "Failed to generate purchase code", http.StatusInternalServerError)
@@ -444,7 +444,7 @@ func (h *InternationalImportHandler) CancelPurchaseFromImport(w http.ResponseWri
 		purchase, err := h.purchaseRepo.GetByID(ctx, *imp.PurchaseID)
 		switch {
 		case err == nil:
-			purchaseHandler := NewPurchaseHandler(h.purchaseRepo, h.supplierRepo, h.productRepo, h.stockAdjustmentRepo)
+			purchaseHandler := NewPurchaseHandler(h.purchaseRepo, h.supplierRepo, h.productRepo, h.stockAdjustmentRepo, nil)
 			purchaseHandler.rollbackPurchaseEffects(ctx, purchase, "ยกเลิก")
 			if err := h.purchaseRepo.Delete(ctx, *imp.PurchaseID); err != nil {
 				http.Error(w, "Failed to delete purchase", http.StatusInternalServerError)
