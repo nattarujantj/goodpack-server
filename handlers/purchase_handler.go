@@ -529,5 +529,30 @@ func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *model
 		}
 	}
 
+	h.updateQuantityPerPack(ctx, purchase)
+
 	return nil
+}
+
+// updateQuantityPerPack บันทึกจำนวนชิ้นต่อลัง(แพ็ค)ของสินค้าจากรายการคลังสินค้าในใบซื้อ
+// (จำนวน ÷ ลัง) เพื่อให้จำนวนลังคงเหลือของสินค้าคำนวณได้ และใบถัดไปคำนวณลังให้อัตโนมัติ
+// ใช้เฉพาะรายการที่หารลงตัว (เต็มลัง) เท่านั้น เพื่อไม่ให้ลังที่มีเศษทำให้ค่าเพี้ยน
+func (h *PurchaseHandler) updateQuantityPerPack(ctx context.Context, purchase *models.Purchase) {
+	perPack := map[string]int{}
+	for _, item := range purchase.Warehouse.Items {
+		if q, ok := models.QuantityPerPackFrom(item.Quantity, item.Boxes); ok && item.ProductID != "" {
+			perPack[item.ProductID] = q
+		}
+	}
+
+	for productID, q := range perPack {
+		product, err := h.productRepo.GetByID(ctx, productID)
+		if err != nil || product.QuantityPerPack == q {
+			continue
+		}
+		product.QuantityPerPack = q
+		if err := h.productRepo.Update(ctx, productID, product); err != nil {
+			fmt.Printf("Warning: Failed to update quantity per pack for product %s: %v\n", productID, err)
+		}
+	}
 }
