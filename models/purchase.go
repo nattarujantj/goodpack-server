@@ -133,6 +133,15 @@ type WarehouseItem struct {
 	Notes       *string `bson:"notes,omitempty" json:"notes,omitempty"`
 }
 
+// QuantityPerPackFrom คืนจำนวนชิ้นต่อลัง(แพ็ค) จากจำนวนและจำนวนลังของรายการคลังสินค้า
+// ok เป็น false เมื่อไม่มีลัง หรือจำนวนหารด้วยลังไม่ลงตัว (มีลังที่ไม่เต็ม)
+func QuantityPerPackFrom(quantity, boxes int) (int, bool) {
+	if quantity <= 0 || boxes <= 0 || quantity%boxes != 0 {
+		return 0, false
+	}
+	return quantity / boxes, true
+}
+
 type PurchaseRequest struct {
 	PurchaseCode        *string              `json:"purchaseCode,omitempty" bson:"purchaseCode,omitempty"`
 	PurchaseDate        time.Time            `json:"purchaseDate" bson:"purchaseDate"`
