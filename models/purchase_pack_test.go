@@ -21,3 +21,15 @@ func TestQuantityPerPackFrom(t *testing.T) {
 		}
 	}
 }
+
+func TestWarehouseItemPerPack(t *testing.T) {
+	if q, ok := (WarehouseItem{Quantity: 1050, Boxes: 11, QuantityPerPack: 100}).PerPack(); !ok || q != 100 {
+		t.Errorf("explicit per pack: got %d, %v", q, ok)
+	}
+	if q, ok := (WarehouseItem{Quantity: 1000, Boxes: 10}).PerPack(); !ok || q != 100 {
+		t.Errorf("derived per pack: got %d, %v", q, ok)
+	}
+	if _, ok := (WarehouseItem{Quantity: 1050, Boxes: 11}).PerPack(); ok {
+		t.Errorf("uneven boxes should not derive per pack")
+	}
+}

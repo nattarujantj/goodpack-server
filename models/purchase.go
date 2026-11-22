@@ -126,11 +126,21 @@ type WarehouseInfo struct {
 }
 
 type WarehouseItem struct {
-	ProductID   string  `bson:"productId" json:"productId"`
-	ProductName string  `bson:"productName" json:"productName"`
-	Quantity    int     `bson:"quantity" json:"quantity"`
-	Boxes       int     `bson:"boxes" json:"boxes"`
-	Notes       *string `bson:"notes,omitempty" json:"notes,omitempty"`
+	ProductID   string `bson:"productId" json:"productId"`
+	ProductName string `bson:"productName" json:"productName"`
+	Quantity    int    `bson:"quantity" json:"quantity"`
+	Boxes       int    `bson:"boxes" json:"boxes"`
+	// QuantityPerPack จำนวนชิ้น/ลัง ที่ผู้ใช้ระบุเอง (0 = ไม่ระบุ ให้คำนวณจากจำนวน ÷ ลัง)
+	QuantityPerPack int     `bson:"quantityPerPack,omitempty" json:"quantityPerPack,omitempty"`
+	Notes           *string `bson:"notes,omitempty" json:"notes,omitempty"`
+}
+
+// PerPack คืนจำนวนชิ้น/ลัง ของรายการ: ใช้ค่าที่ผู้ใช้ระบุก่อน ถ้าไม่มีคำนวณจากจำนวน ÷ ลัง (ต้องหารลงตัว)
+func (i WarehouseItem) PerPack() (int, bool) {
+	if i.QuantityPerPack > 0 {
+		return i.QuantityPerPack, true
+	}
+	return QuantityPerPackFrom(i.Quantity, i.Boxes)
 }
 
 // QuantityPerPackFrom คืนจำนวนชิ้นต่อลัง(แพ็ค) จากจำนวนและจำนวนลังของรายการคลังสินค้า

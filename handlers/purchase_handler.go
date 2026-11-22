@@ -535,12 +535,12 @@ func (h *PurchaseHandler) updateProductData(ctx context.Context, purchase *model
 }
 
 // updateQuantityPerPack บันทึกจำนวนชิ้นต่อลัง(แพ็ค)ของสินค้าจากรายการคลังสินค้าในใบซื้อ
-// (จำนวน ÷ ลัง) เพื่อให้จำนวนลังคงเหลือของสินค้าคำนวณได้ และใบถัดไปคำนวณลังให้อัตโนมัติ
-// ใช้เฉพาะรายการที่หารลงตัว (เต็มลัง) เท่านั้น เพื่อไม่ให้ลังที่มีเศษทำให้ค่าเพี้ยน
+// ใช้ค่า ชิ้น/ลัง ที่ผู้ใช้กรอก ถ้าไม่กรอกคำนวณจาก จำนวน ÷ ลัง เฉพาะที่หารลงตัว (เต็มลัง)
+// เพื่อให้จำนวนลังคงเหลือของสินค้าคำนวณได้ และใบถัดไปคำนวณลังให้อัตโนมัติ
 func (h *PurchaseHandler) updateQuantityPerPack(ctx context.Context, purchase *models.Purchase) {
 	perPack := map[string]int{}
 	for _, item := range purchase.Warehouse.Items {
-		if q, ok := models.QuantityPerPackFrom(item.Quantity, item.Boxes); ok && item.ProductID != "" {
+		if q, ok := item.PerPack(); ok && item.ProductID != "" {
 			perPack[item.ProductID] = q
 		}
 	}
